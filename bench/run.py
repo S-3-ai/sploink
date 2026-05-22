@@ -8,13 +8,12 @@ Usage:
     uv run python -m bench.run --n 5                       # smoke test
     uv run python -m bench.run --n 100                     # full bench
     uv run python -m bench.run --graphs linear,parallel_dag
-    uv run python -m bench.run --strategy ollama_only --graphs linear,parallel_dag,decomposed
+    uv run python -m bench.run --strategy cpu_only --graphs linear,parallel_dag,decomposed
 
-The default `--strategy ollama_only` is the constant background for the
-graph-topology experiment: every step runs on local Ollama with the same
-model. Holding compute and model constant isolates graph structure as the
-only varying variable. Other strategies (edge_routed, all_cloud) are
-available for future routing-vs-graph experiments.
+The default `--strategy hw_routed` is the sploink thesis: cheap steps run on
+CPU (Ollama, free), the reasoning step escalates to LPU (Groq, low-latency).
+Other strategies (cpu_only, lpu_only) are uniform-hardware baselines that
+isolate per-architecture cost/latency/quality.
 """
 from __future__ import annotations
 
@@ -30,7 +29,7 @@ from dotenv import load_dotenv
 
 from bench import dataset as dataset_mod
 from bench import score as score_mod
-from bench.graphs import GRAPHS
+from bench.graphs import GRAPHS, execute
 from bench.strategies import STRATEGIES
 
 
@@ -159,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--strategy",
         type=str,
-        default="ollama_only",
+        default="hw_routed",
         help="routing strategy held constant across graphs. one of: "
         + ",".join(STRATEGIES.keys()),
     )
@@ -194,12 +193,12 @@ def main(argv: list[str] | None = None) -> int:
     all_runs: list[PerRun] = []
 
     for graph_name in graphs:
-        graph_fn = GRAPHS[graph_name]
+        graph = GRAPHS[graph_name]
         print(f"\n=== graph: {graph_name} ===")
         for i, ex in enumerate(examples):
             t0 = time.perf_counter()
             try:
-                run_result = graph_fn(ex, runner)
+                run_result = execute(graph, ex, runner)
             except Exception as e:
                 print(f"  [{i+1}/{len(examples)}] FAILED: {e}", file=sys.stderr)
                 continue

@@ -1,0 +1,17 @@
+.git/
+.venv/
+__pycache__/
+*.pyc
+dist/
+build/
+bench/results/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+sploink_architecture.html
+sploink_dashboard.html
+.env
+.env.*
+node_modules/
+.DS_Store

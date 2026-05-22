@@ -1,24 +1,60 @@
 [project]
 name = "sploink"
-version = "0.0.1"
-description = "Heterogeneous compute routing for AI agent workflows"
+version = "0.1.1"
+description = "Heterogeneous compute routing for AI agent workflows."
 readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Tim Nguyen", email = "timothyng04@gmail.com"}]
 requires-python = ">=3.11"
+keywords = ["llm", "routing", "agent", "inference", "observability", "anthropic", "groq", "ollama"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "pydantic>=2.6",
-    "anthropic>=0.40",
-    "groq>=0.11",
-    "python-dotenv>=1.0",
-    "httpx>=0.27",
-    "together>=2.14.0",
-    "ollama>=0.6.2",
-    "datasets>=4.8.5",
 ]
 
 [project.optional-dependencies]
+# Install only the substrate SDKs you actually use:
+anthropic = ["anthropic>=0.40"]
+groq      = ["groq>=0.11"]
+openai    = ["openai>=1.50"]
+together  = ["together>=2.14.0"]
+ollama    = ["ollama>=0.6.2"]
+all       = [
+    "anthropic>=0.40",
+    "groq>=0.11",
+    "openai>=1.50",
+    "together>=2.14.0",
+    "ollama>=0.6.2",
+]
+# Everything needed to run the bench locally (HotpotQA + multi-substrate).
+bench = [
+    "anthropic>=0.40",
+    "groq>=0.11",
+    "ollama>=0.6.2",
+    "datasets>=4.8.5",
+    "python-dotenv>=1.0",
+]
 dev = [
     "pytest>=8.0",
+    "httpx>=0.27",
 ]
+
+[project.urls]
+Homepage      = "https://github.com/S-3-ai/sploink"
+Documentation = "https://s-3-ai.github.io/sploink"
+Repository    = "https://github.com/S-3-ai/sploink"
+Issues        = "https://github.com/S-3-ai/sploink/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -26,3 +62,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["sploink"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/sploink",
+    "/README.md",
+    "/LICENSE",
+    "/PRD.md",
+    "/pyproject.toml",
+]

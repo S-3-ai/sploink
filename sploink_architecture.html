@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sploink — Workflow ↔ Hardware</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f8fafc;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --edge: #94a3b8;
+    --bipartite: #3b82f6;
+    --workflow-stroke: #475569;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
+    font-size: 14px;
+  }
+  header {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  header h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  header .subtitle { color: var(--muted); font-size: 13px; }
+  .controls { display: flex; align-items: center; gap: 16px; }
+  .controls label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .controls .pill {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+  }
+  .controls select {
+    font-family: inherit; font-size: 13px;
+    padding: 6px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  main { padding: 20px 28px; display: flex; gap: 24px; align-items: flex-start; }
+  .canvas-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    flex: 1;
+  }
+  svg { display: block; }
+  .col-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    fill: var(--muted);
+    font-weight: 600;
+  }
+  .col-sublabel {
+    font-size: 10px;
+    fill: var(--muted);
+    font-style: italic;
+  }
+  .node-rect {
+    fill: #ffffff;
+    stroke: var(--workflow-stroke);
+    stroke-width: 1.5;
+  }
+  .node-title { font-size: 14px; font-weight: 600; fill: var(--text); }
+  .node-sub   { font-size: 11px; fill: var(--muted); }
+  .node-tok   {
+    font-size: 11px; fill: var(--muted);
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+  }
+  .hw-box {
+    stroke-width: 1.5;
+  }
+  .hw-header-accent { /* the thin colored bar at top */ }
+  .hw-title { font-size: 14px; font-weight: 600; fill: var(--text); }
+  .hw-sub   { font-size: 11px; fill: var(--muted); }
+  .hw-instance-row.active {
+    /* active instance — vivid */
+  }
+  .hw-instance-row.inactive text { fill: var(--muted); opacity: 0.55; }
+  .instance-provider { font-size: 12px; font-weight: 500; }
+  .instance-model    { font-size: 11px; font-family: "SF Mono", Menlo, Consolas, monospace; fill: var(--muted); }
+  .instance-dot      { stroke-width: 1.5; }
+  .workflow-edge {
+    stroke: var(--edge);
+    stroke-width: 1.5;
+    fill: none;
+    stroke-dasharray: 4 4;
+  }
+  .bipartite-edge {
+    stroke: var(--bipartite);
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+  }
+  .bipartite-edge.highlighted { opacity: 1; stroke-width: 3; }
+  .bipartite-edge.dimmed { opacity: 0.12; }
+  .arrow { fill: var(--edge); }
+  .arrow-bipartite { fill: var(--bipartite); }
+  .side-panel {
+    width: 320px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .side-panel h2 {
+    font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 10px 0;
+  }
+  .layer-badge {
+    display: inline-block;
+    background: var(--bipartite);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-right: 6px;
+  }
+  .legend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .assignment-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px; }
+  .assignment-section table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .assignment-section td { padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .assignment-section td:first-child {
+    color: var(--muted);
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px;
+  }
+  .assignment-section td:nth-child(2) { font-weight: 500; }
+  .assignment-section td:last-child {
+    text-align: right;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  footer { padding: 14px 28px 22px; color: var(--muted); font-size: 12px; }
+  footer code {
+    background: var(--panel);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Sploink — workflow ↔ hardware (two-layer routing)</h1>
+    <div class="subtitle">Layer 1: routing policy (workflow step → hardware type) &nbsp; · &nbsp; Layer 2: substrate selection (hardware type → provider instance)</div>
+  </div>
+  <div class="controls">
+    <span class="pill" id="workflow-pill"></span>
+    <label for="strategy">routing strategy</label>
+    <select id="strategy"></select>
+  </div>
+</header>
+
+<main>
+  <div class="canvas-wrap">
+    <svg id="canvas" viewBox="0 0 1240 760" width="100%"></svg>
+  </div>
+  <aside class="side-panel">
+    <h2><span class="layer-badge">L1</span>Hardware types</h2>
+    <div id="legend"></div>
+    <div class="assignment-section">
+      <h2><span class="layer-badge">L1</span>Routing (step → hw type)</h2>
+      <table id="assignment-table"></table>
+    </div>
+    <div class="assignment-section">
+      <h2><span class="layer-badge">L2</span>Active substrates</h2>
+      <table id="instance-table"></table>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  Workflow IR (left) read from <code>bench.graphs.GRAPHS</code>. Hardware types and substrate instances (right) defined in <code>sploink.architecture</code>. Routing policies in <code>bench.strategies.HW_POLICIES</code>. Solid blue = Layer 1 (the routing decision). Filled dots inside each hardware-type box = Layer 2 (currently active substrate).
+</footer>
+
+<script>
+const DATA = {"workflow_name": "parallel_dag", "workflow_nodes": [{"id": "classify", "label": "classify", "step": "classify", "subtitle": "bridge vs comparison", "max_tokens": 8}, {"id": "rerank", "label": "rerank", "step": "rerank", "subtitle": "score paragraphs", "max_tokens": 400}, {"id": "extract", "label": "extract", "step": "extract", "subtitle": "pull relevant facts", "max_tokens": 300}, {"id": "reason", "label": "reason", "step": "reason", "subtitle": "synthesize answer", "max_tokens": 60}, {"id": "verify", "label": "verify", "step": "verify", "subtitle": "answer follows facts?", "max_tokens": 6}], "workflow_edges": [["classify", "extract"], ["rerank", "extract"], ["extract", "reason"], ["reason", "verify"]], "workflow_pos": {"classify": [90, 120], "rerank": [310, 120], "extract": [200, 260], "reason": [200, 400], "verify": [200, 540]}, "hardware_types": [{"id": "cpu", "label": "CPU", "subtitle": "von Neumann general-purpose", "color": "#4f46e5", "bg": "#eef2ff", "instances": [{"id": "ollama", "provider": "Ollama", "model": "llama3.1:8b", "active": true, "location": "local"}, {"id": "salad", "provider": "Salad", "model": "llama3.1:8b", "active": false, "location": "cloud"}]}, {"id": "lpu", "label": "LPU", "subtitle": "tensor streaming, deterministic", "color": "#d97706", "bg": "#fef3c7", "instances": [{"id": "groq", "provider": "Groq", "model": "llama-3.1-8b-instant", "active": true, "location": "cloud"}, {"id": "cerebras", "provider": "Cerebras", "model": "llama-3.1-8b", "active": false, "location": "cloud"}]}, {"id": "gpu", "label": "GPU", "subtitle": "SIMT, high throughput", "color": "#059669", "bg": "#d1fae5", "instances": [{"id": "together", "provider": "Together", "model": "llama-3.1-70b", "active": false, "location": "cloud"}, {"id": "runpod", "provider": "RunPod", "model": "llama-3.1-70b", "active": false, "location": "cloud"}]}, {"id": "frontier_api", "label": "Frontier API", "subtitle": "closed, hardware-opaque", "color": "#dc2626", "bg": "#fee2e2", "instances": [{"id": "anthropic", "provider": "Anthropic", "model": "claude-sonnet-4-6", "active": false, "location": "cloud"}, {"id": "openai", "provider": "OpenAI", "model": "gpt-4o", "active": false, "location": "cloud"}]}], "hw_pos": {"cpu": [880, 120], "lpu": [880, 274], "gpu": [880, 428], "frontier_api": [880, 582]}, "strategies": {"cpu_only": {"classify": "cpu", "rerank": "cpu", "extract": "cpu", "reason": "cpu", "verify": "cpu"}, "lpu_only": {"classify": "lpu", "rerank": "lpu", "extract": "lpu", "reason": "lpu", "verify": "lpu"}, "hw_routed": {"classify": "cpu", "rerank": "cpu", "extract": "cpu", "reason": "lpu", "verify": "cpu"}}, "default_strategy": "hw_routed", "geom": {"wf_node_w": 220, "wf_node_h": 70, "hw_box_w": 260, "hw_box_header_h": 50, "hw_instance_h": 36, "hw_instance_pad": 8}, "canvas_w": 1240, "canvas_h": 760};
+
+const ARROW_DEFS = `
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arrow"/>
+    </marker>
+    <marker id="arrow-bipartite" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-bipartite"/>
+    </marker>
+  </defs>
+`;
+
+function hwBoxHeight(ht) {
+  return DATA.geom.hw_box_header_h + ht.instances.length * DATA.geom.hw_instance_h + DATA.geom.hw_instance_pad * 2;
+}
+
+function activeInstance(ht) {
+  return ht.instances.find(i => i.active) || ht.instances[0];
+}
+
+function renderSVG(strategyName) {
+  const assignment = DATA.strategies[strategyName];
+  const used = new Set(Object.values(assignment));
+
+  const WW = DATA.geom.wf_node_w, WH = DATA.geom.wf_node_h;
+  const HW = DATA.geom.hw_box_w;
+  let svg = ARROW_DEFS;
+
+  // Column labels
+  const sampleWfX = DATA.workflow_nodes.length ? DATA.workflow_pos[DATA.workflow_nodes[0].id][0] + WW/2 : 200;
+  svg += `<text x="${sampleWfX}" y="60" text-anchor="middle" class="col-label">workflow ir</text>`;
+  svg += `<text x="${sampleWfX}" y="76" text-anchor="middle" class="col-sublabel">customer's agent — fixed</text>`;
+  const hwLabelX = DATA.hw_pos[DATA.hardware_types[0].id][0] + HW/2;
+  svg += `<text x="${hwLabelX}" y="60" text-anchor="middle" class="col-label">hardware types</text>`;
+  svg += `<text x="${hwLabelX}" y="76" text-anchor="middle" class="col-sublabel">routing targets</text>`;
+
+  // Workflow dependency edges (dashed)
+  for (const [src, dst] of DATA.workflow_edges) {
+    const [x1, y1] = DATA.workflow_pos[src];
+    const [x2, y2] = DATA.workflow_pos[dst];
+    const sx = x1 + WW/2, sy = y1 + WH;
+    const ex = x2 + WW/2, ey = y2;
+    const cy = (sy + ey) / 2;
+    svg += `<path class="workflow-edge" d="M ${sx} ${sy} C ${sx} ${cy}, ${ex} ${cy}, ${ex} ${ey}" marker-end="url(#arrow)"/>`;
+  }
+
+  // Layer-1 bipartite edges — workflow node → hardware-type box
+  for (const node of DATA.workflow_nodes) {
+    const hwId = assignment[node.step] || assignment[node.id];
+    if (!hwId) continue;
+    const ht = DATA.hardware_types.find(h => h.id === hwId);
+    if (!ht) continue;
+    const [x1, y1] = DATA.workflow_pos[node.id];
+    const [x2, y2] = DATA.hw_pos[hwId];
+    const boxH = hwBoxHeight(ht);
+    const sx = x1 + WW;
+    const sy = y1 + WH/2;
+    const ex = x2;
+    const ey = y2 + boxH/2;
+    const mid = (sx + ex) / 2;
+    svg += `<path class="bipartite-edge" data-step="${node.id}" data-hw="${hwId}" d="M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ey}, ${ex} ${ey}" marker-end="url(#arrow-bipartite)"/>`;
+  }
+
+  // Workflow nodes
+  for (const node of DATA.workflow_nodes) {
+    const [x, y] = DATA.workflow_pos[node.id];
+    svg += `<g data-node="${node.id}">`;
+    svg += `<rect class="node-rect" x="${x}" y="${y}" width="${WW}" height="${WH}" rx="8" ry="8"/>`;
+    svg += `<text class="node-title" x="${x + 14}" y="${y + 26}">${node.label}</text>`;
+    svg += `<text class="node-sub"   x="${x + 14}" y="${y + 46}">${node.subtitle}</text>`;
+    svg += `<text class="node-tok"   x="${x + WW - 14}" y="${y + 26}" text-anchor="end">${node.max_tokens} tok</text>`;
+    svg += `</g>`;
+  }
+
+  // Hardware-type boxes (with nested substrate instances)
+  for (const ht of DATA.hardware_types) {
+    const [x, y] = DATA.hw_pos[ht.id];
+    const boxH = hwBoxHeight(ht);
+    const dim = !used.has(ht.id);
+    svg += `<g data-hw="${ht.id}" style="${dim ? 'opacity:0.45' : ''}">`;
+    // outer box
+    svg += `<rect class="hw-box" x="${x}" y="${y}" width="${HW}" height="${boxH}" rx="10" ry="10" style="stroke:${ht.color}; fill:${ht.bg}"/>`;
+    // colored accent bar
+    svg += `<rect x="${x}" y="${y}" width="${HW}" height="4" rx="2" ry="2" style="fill:${ht.color}"/>`;
+    // header
+    svg += `<text class="hw-title" x="${x + 14}" y="${y + 26}">${ht.label}</text>`;
+    svg += `<text class="hw-sub"   x="${x + 14}" y="${y + 42}">${ht.subtitle}</text>`;
+    // instances
+    const instTop = y + DATA.geom.hw_box_header_h + DATA.geom.hw_instance_pad;
+    ht.instances.forEach((inst, j) => {
+      const iy = instTop + j * DATA.geom.hw_instance_h;
+      const rowCls = inst.active ? "hw-instance-row active" : "hw-instance-row inactive";
+      svg += `<g class="${rowCls}">`;
+      // dot — filled if active, outlined if inactive
+      const dotFill = inst.active ? ht.color : "none";
+      svg += `<circle class="instance-dot" cx="${x + 22}" cy="${iy + 18}" r="5" style="fill:${dotFill}; stroke:${ht.color}"/>`;
+      svg += `<text class="instance-provider" x="${x + 36}" y="${iy + 16}">${inst.provider}</text>`;
+      svg += `<text class="instance-model"    x="${x + 36}" y="${iy + 30}">${inst.model}</text>`;
+      const tag = inst.location;
+      svg += `<text class="instance-model" x="${x + HW - 14}" y="${iy + 16}" text-anchor="end">${tag}</text>`;
+      if (!inst.active) {
+        svg += `<text class="instance-model" x="${x + HW - 14}" y="${iy + 30}" text-anchor="end">(planned)</text>`;
+      }
+      svg += `</g>`;
+    });
+    svg += `</g>`;
+  }
+
+  document.getElementById('canvas').innerHTML = svg;
+  attachHover();
+}
+
+function attachHover() {
+  document.querySelectorAll('[data-node]').forEach(el => {
+    const step = el.getAttribute('data-node');
+    el.addEventListener('mouseenter', () => highlight({step}));
+    el.addEventListener('mouseleave', clearHighlight);
+  });
+  document.querySelectorAll('g[data-hw]').forEach(el => {
+    const hw = el.getAttribute('data-hw');
+    el.addEventListener('mouseenter', () => highlight({hw}));
+    el.addEventListener('mouseleave', clearHighlight);
+  });
+}
+
+function highlight({step, hw}) {
+  document.querySelectorAll('.bipartite-edge').forEach(el => {
+    const matchStep = step && el.getAttribute('data-step') === step;
+    const matchHw   = hw   && el.getAttribute('data-hw')   === hw;
+    if (matchStep || matchHw) { el.classList.add('highlighted'); el.classList.remove('dimmed'); }
+    else { el.classList.add('dimmed'); el.classList.remove('highlighted'); }
+  });
+}
+
+function clearHighlight() {
+  document.querySelectorAll('.bipartite-edge').forEach(el => {
+    el.classList.remove('highlighted'); el.classList.remove('dimmed');
+  });
+}
+
+function renderLegend() {
+  const html = DATA.hardware_types.map(ht =>
+    `<div class="legend-row">
+       <div class="legend-swatch" style="background:${ht.color}"></div>
+       <div><b>${ht.label}</b> <span style="color:var(--muted)">— ${ht.subtitle}</span></div>
+     </div>`
+  ).join('');
+  document.getElementById('legend').innerHTML = html;
+}
+
+function renderAssignmentTable(strategyName) {
+  const assignment = DATA.strategies[strategyName];
+  const htById = Object.fromEntries(DATA.hardware_types.map(h => [h.id, h]));
+  const html = DATA.workflow_nodes.map(n => {
+    const hwId = assignment[n.step] || assignment[n.id];
+    const ht = htById[hwId];
+    if (!ht) return '';
+    return `<tr>
+       <td>${n.label}</td>
+       <td><span style="color:${ht.color}">${ht.label}</span></td>
+       <td>${ht.id}</td>
+     </tr>`;
+  }).join('');
+  document.getElementById('assignment-table').innerHTML = html;
+}
+
+function renderInstanceTable(strategyName) {
+  const assignment = DATA.strategies[strategyName];
+  const used = new Set(Object.values(assignment));
+  const html = DATA.hardware_types
+    .filter(ht => used.has(ht.id))
+    .map(ht => {
+      const active = activeInstance(ht);
+      return `<tr>
+        <td>${ht.label}</td>
+        <td><span style="color:${ht.color}">${active.provider}</span></td>
+        <td>${active.model}</td>
+      </tr>`;
+    }).join('');
+  document.getElementById('instance-table').innerHTML = html;
+}
+
+function renderStrategySelector() {
+  const sel = document.getElementById('strategy');
+  sel.innerHTML = Object.keys(DATA.strategies)
+    .map(s => `<option value="${s}" ${s === DATA.default_strategy ? 'selected' : ''}>${s}</option>`)
+    .join('');
+  sel.addEventListener('change', e => {
+    renderSVG(e.target.value);
+    renderAssignmentTable(e.target.value);
+    renderInstanceTable(e.target.value);
+  });
+}
+
+document.getElementById('workflow-pill').textContent = `workflow: ${DATA.workflow_name}`;
+renderLegend();
+renderStrategySelector();
+renderSVG(DATA.default_strategy);
+renderAssignmentTable(DATA.default_strategy);
+renderInstanceTable(DATA.default_strategy);
+</script>
+</body>
+</html>

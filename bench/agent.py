@@ -34,8 +34,9 @@ class StepResult:
     tokens_in: int
     tokens_out: int
     cost_usd: float
-    substrate: str
+    substrate: str       # provider name: "ollama", "groq", "anthropic", ...
     model: str
+    hardware_type: str = "cpu"  # architecture: "cpu", "lpu", "gpu", "frontier_api", ...
 
 
 # A Runner takes (step_label, prompt, max_tokens) and returns a StepResult.

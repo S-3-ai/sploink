@@ -1,33 +1,22 @@
-"""Execution-graph variants for the RAG agent bench.
+"""Execution-graph variants for the RAG agent bench — DAG-as-data + executor.
 
-Each graph is `(example, runner, top_k=3) -> AgentRun`. The Runner is the same
-substrate-dispatching contract used by `bench/strategies.py` — what varies
-between graphs is only the topology of the steps.
+Three Graph variants (`LINEAR`, `PARALLEL_DAG`, `DECOMPOSED`) defined as data,
+plus one generic `execute()` function that walks any DAG and produces an
+AgentRun. The three are the experimental variable: same model, same dataset,
+same routing strategy — only the topology differs.
 
-The scientific claim being tested: holding input + routing + compute pool +
-model constant and varying only the graph structure produces measurable
-cost / latency / quality differences. The graph is the central optimization
-variable.
+Adding a fourth variant is one new Graph definition. The executor doesn't
+change. This is the architectural payoff for moving topology out of code.
 
-Variants:
-  linear         — baseline 5-step sequential chain
-  parallel_dag   — classify and rerank run concurrently (no data dependency)
-  decomposed     — extract fans out to one call per top-k paragraph,
-                   then a merge step concatenates facts
-
-Latency note: with parallel variants, the relevant latency metric is wall-clock
-time at the driver, not the sum of step latencies in the AgentRun (since steps
-overlap). The driver in `bench/run.py` measures wall-clock around the graph
-call, so that metric is correct regardless of graph topology.
-
-Concurrency note: parallel variants use threads (concurrent.futures). For
-Ollama, set OLLAMA_NUM_PARALLEL>=2 to enable concurrent local inference
-(default in recent versions is 4). The Groq and Ollama clients used by the
-runners are thread-safe.
+Latency note: executor measures wall-clock around the full graph at the
+driver layer (bench/run.py), not the sum of step latencies. Nodes in the
+same topological layer run concurrently via ThreadPoolExecutor.
 """
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+
+from sploink.graph import Graph, Node
 
 from bench.agent import (
     AgentRun,
@@ -41,143 +30,180 @@ from bench.agent import (
     synthesize_prompt,
     verify_prompt,
 )
-from bench.dataset import Example
+from bench.dataset import Example, Paragraph
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Variant: linear — baseline sequential 5-step chain
-# ─────────────────────────────────────────────────────────────────────────────
-def linear(example: Example, runner: Runner, top_k: int = 3) -> AgentRun:
-    steps: list[StepResult] = []
+TOP_K = 3
 
-    s = runner("classify", classify_prompt(example.question), 8)
-    steps.append(s)
 
-    s = runner("rerank", rerank_prompt(example.question, example.paragraphs), 400)
-    steps.append(s)
-    scores = parse_rerank_scores(s.text, len(example.paragraphs))
+def _top_k_paragraphs(example: Example, rerank_result: StepResult) -> list[Paragraph]:
+    scores = parse_rerank_scores(rerank_result.text, len(example.paragraphs))
     ranked = sorted(zip(scores, example.paragraphs), key=lambda x: -x[0])
-    top_paragraphs = [p for _, p in ranked[:top_k]]
+    return [p for _, p in ranked[:TOP_K]]
 
-    s = runner("extract", extract_prompt(example.question, top_paragraphs), 300)
-    steps.append(s)
-    facts = s.text.strip()
 
-    s = runner("reason", synthesize_prompt(example.question, facts), 60)
-    steps.append(s)
-    answer = _normalize_answer(s.text)
+def _normalize_answer(text: str) -> str:
+    """First non-empty line, trailing period stripped."""
+    return text.strip().split("\n")[0].strip().strip(".").strip()
 
-    s = runner("verify", verify_prompt(answer, facts), 6)
-    steps.append(s)
 
-    return AgentRun(example=example, answer=answer, steps=steps)
+def _merge_decomposed_facts(extract_results: list[StepResult]) -> str:
+    """Concatenate per-paragraph extract outputs into one fact list."""
+    lines: list[str] = []
+    for sr in extract_results:
+        for line in sr.text.strip().splitlines():
+            line = line.strip()
+            if line:
+                lines.append(line)
+    return "\n".join(lines)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Variant: parallel_dag — classify ∥ rerank, then sequential extract → reason → verify
+# Variant: linear — sequential chain
 # ─────────────────────────────────────────────────────────────────────────────
-# Hypothesis: classify and rerank have no data dependency on each other (rerank
-# only consumes the question + paragraphs, not the classify output). Running
-# them in parallel cuts wall-clock latency by ~min(classify_lat, rerank_lat)
-# at no extra cost and no quality change.
-def parallel_dag(example: Example, runner: Runner, top_k: int = 3) -> AgentRun:
-    steps: list[StepResult] = []
+# Note: a previous version of this workflow had a `classify` step but its
+# output was never read by any downstream step (dead code). It was removed
+# 2026-05-22 to keep the bench honest. If a real branching policy is ever
+# introduced (e.g. bridge vs comparison routes through different rerank
+# prompts), classify comes back.
+LINEAR = Graph(
+    nodes=(
+        Node(
+            id="rerank", step="rerank", max_tokens=400,
+            build_prompt=lambda ex, state: rerank_prompt(ex.question, ex.paragraphs),
+        ),
+        Node(
+            id="extract", step="extract", max_tokens=300,
+            build_prompt=lambda ex, state: extract_prompt(
+                ex.question, _top_k_paragraphs(ex, state["rerank"]),
+            ),
+        ),
+        Node(
+            id="reason", step="reason", max_tokens=60,
+            build_prompt=lambda ex, state: synthesize_prompt(
+                ex.question, state["extract"].text.strip(),
+            ),
+        ),
+        Node(
+            id="verify", step="verify", max_tokens=6,
+            build_prompt=lambda ex, state: verify_prompt(
+                _normalize_answer(state["reason"].text), state["extract"].text.strip(),
+            ),
+        ),
+    ),
+    edges=(
+        ("rerank", "extract"),
+        ("extract", "reason"),
+        ("reason", "verify"),
+    ),
+    answer_node="reason",
+)
 
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        fut_classify = ex.submit(
-            runner, "classify", classify_prompt(example.question), 8
-        )
-        fut_rerank = ex.submit(
-            runner, "rerank", rerank_prompt(example.question, example.paragraphs), 400
-        )
-        s_classify = fut_classify.result()
-        s_rerank = fut_rerank.result()
 
-    steps.append(s_classify)
-    steps.append(s_rerank)
-
-    scores = parse_rerank_scores(s_rerank.text, len(example.paragraphs))
-    ranked = sorted(zip(scores, example.paragraphs), key=lambda x: -x[0])
-    top_paragraphs = [p for _, p in ranked[:top_k]]
-
-    s = runner("extract", extract_prompt(example.question, top_paragraphs), 300)
-    steps.append(s)
-    facts = s.text.strip()
-
-    s = runner("reason", synthesize_prompt(example.question, facts), 60)
-    steps.append(s)
-    answer = _normalize_answer(s.text)
-
-    s = runner("verify", verify_prompt(answer, facts), 6)
-    steps.append(s)
-
-    return AgentRun(example=example, answer=answer, steps=steps)
+# ─────────────────────────────────────────────────────────────────────────────
+# Variant: parallel_dag — same shape as linear after classify removal.
+# (Kept in the registry so the bench's --graphs flag still works; for substrate
+# experiments we use parallel_dag and the two are currently equivalent.)
+# ─────────────────────────────────────────────────────────────────────────────
+PARALLEL_DAG = Graph(
+    nodes=LINEAR.nodes,
+    edges=LINEAR.edges,
+    answer_node="reason",
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Variant: decomposed — fan out extract to one call per top-k paragraph
 # ─────────────────────────────────────────────────────────────────────────────
-# Hypothesis: per-paragraph extract calls are smaller and more focused. They
-# may improve quality (each prompt has less to attend to) and enable
-# parallelism (independent extracts), at the cost of more calls and losing
-# cross-paragraph synthesis. Genuinely unknown outcome — that's why it's
-# worth testing.
-def decomposed(example: Example, runner: Runner, top_k: int = 3) -> AgentRun:
-    steps: list[StepResult] = []
-
-    s = runner("classify", classify_prompt(example.question), 8)
-    steps.append(s)
-
-    s = runner("rerank", rerank_prompt(example.question, example.paragraphs), 400)
-    steps.append(s)
-    scores = parse_rerank_scores(s.text, len(example.paragraphs))
-    ranked = sorted(zip(scores, example.paragraphs), key=lambda x: -x[0])
-    top_paragraphs = [p for _, p in ranked[:top_k]]
-
-    # Fan out: one extract call per paragraph, in parallel.
-    with ThreadPoolExecutor(max_workers=top_k) as ex:
-        futures = [
-            ex.submit(
-                runner,
-                "extract",
-                extract_one_paragraph_prompt(example.question, p),
-                150,
+# Per-paragraph extracts run in parallel; their outputs are merged (string
+# concatenation, no LM call) by reason's build_prompt before synthesis.
+DECOMPOSED = Graph(
+    nodes=(
+        Node(
+            id="rerank", step="rerank", max_tokens=400,
+            build_prompt=lambda ex, state: rerank_prompt(ex.question, ex.paragraphs),
+        ),
+        *(
+            Node(
+                id=f"extract_{i}", step="extract", max_tokens=150,
+                build_prompt=(
+                    lambda ex, state, i=i: extract_one_paragraph_prompt(
+                        ex.question, _top_k_paragraphs(ex, state["rerank"])[i],
+                    )
+                ),
+                params={"paragraph_index": i},
             )
-            for p in top_paragraphs
-        ]
-        extracts = [f.result() for f in futures]
-
-    steps.extend(extracts)
-
-    # Merge facts into a single newline-joined block. Skip empty extractions.
-    facts_lines: list[str] = []
-    for sr in extracts:
-        for line in sr.text.strip().splitlines():
-            line = line.strip()
-            if line:
-                facts_lines.append(line)
-    facts = "\n".join(facts_lines)
-
-    s = runner("reason", synthesize_prompt(example.question, facts), 60)
-    steps.append(s)
-    answer = _normalize_answer(s.text)
-
-    s = runner("verify", verify_prompt(answer, facts), 6)
-    steps.append(s)
-
-    return AgentRun(example=example, answer=answer, steps=steps)
+            for i in range(TOP_K)
+        ),
+        Node(
+            id="reason", step="reason", max_tokens=60,
+            build_prompt=lambda ex, state: synthesize_prompt(
+                ex.question,
+                _merge_decomposed_facts(
+                    [state[f"extract_{i}"] for i in range(TOP_K)]
+                ),
+            ),
+        ),
+        Node(
+            id="verify", step="verify", max_tokens=6,
+            build_prompt=lambda ex, state: verify_prompt(
+                _normalize_answer(state["reason"].text),
+                _merge_decomposed_facts(
+                    [state[f"extract_{i}"] for i in range(TOP_K)]
+                ),
+            ),
+        ),
+    ),
+    edges=(
+        *((f"rerank", f"extract_{i}") for i in range(TOP_K)),
+        *((f"extract_{i}", "reason") for i in range(TOP_K)),
+        ("reason", "verify"),
+    ),
+    answer_node="reason",
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Registry — used by the driver to dispatch by name.
 # ─────────────────────────────────────────────────────────────────────────────
-GRAPHS = {
-    "linear": linear,
-    "parallel_dag": parallel_dag,
-    "decomposed": decomposed,
+GRAPHS: dict[str, Graph] = {
+    "linear": LINEAR,
+    "parallel_dag": PARALLEL_DAG,
+    "decomposed": DECOMPOSED,
 }
 
 
-def _normalize_answer(text: str) -> str:
-    """Take the first non-empty line of a generation, strip trailing period."""
-    return text.strip().split("\n")[0].strip().strip(".").strip()
+# ─────────────────────────────────────────────────────────────────────────────
+# Generic executor — walks any DAG, returns an AgentRun.
+# ─────────────────────────────────────────────────────────────────────────────
+def execute(graph: Graph, example: Example, runner: Runner) -> AgentRun:
+    """Execute `graph` on `example`, dispatching each node via `runner`.
+
+    Nodes in the same topological layer run concurrently. Sequential layers
+    run on the calling thread. State is keyed by node.id — each node's
+    build_prompt sees every result produced so far.
+    """
+    state: dict[str, StepResult] = {}
+    ordered_results: list[StepResult] = []
+
+    for layer in graph.topological_layers():
+        if len(layer) == 1:
+            node = layer[0]
+            result = runner(node.step, node.build_prompt(example, state), node.max_tokens)
+            state[node.id] = result
+            ordered_results.append(result)
+        else:
+            with ThreadPoolExecutor(max_workers=len(layer)) as ex:
+                futs = {
+                    node.id: ex.submit(
+                        runner, node.step, node.build_prompt(example, state), node.max_tokens,
+                    )
+                    for node in layer
+                }
+                for node in layer:
+                    result = futs[node.id].result()
+                    state[node.id] = result
+                    ordered_results.append(result)
+
+    answer = _normalize_answer(state[graph.answer_node].text)
+    return AgentRun(example=example, answer=answer, steps=ordered_results)

@@ -1,0 +1,30 @@
+/* sploink docs — extra polish on top of MkDocs Material */
+
+:root {
+  --md-primary-fg-color: #ffffff;
+  --md-primary-fg-color--light: #ffffff;
+  --md-primary-bg-color: #0f172a;
+  --md-accent-fg-color: #3b82f6;
+}
+
+/* Tighter top bar */
+.md-header {
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: none;
+}
+
+.md-tabs {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Cleaner code blocks */
+.md-typeset code {
+  font-size: 0.85em;
+}
+
+/* Less neon, more neutral table styling */
+.md-typeset table:not([class]) th {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+}

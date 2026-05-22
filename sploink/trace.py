@@ -29,7 +29,19 @@ StepLabel = Literal[
 ]
 
 OutputStructure = Literal["freeform", "json", "tool_call"]
-HardwareType = Literal["frontier_api", "lpu", "gpu", "cpu", "edge"]
+# Hardware architecture categories — the load-bearing axis for routing decisions.
+# "edge" was dropped because it conflated geography (where the chip lives) with
+# architecture (what kind of chip it is). On-device CPU is just `cpu` with a
+# location property; the architecture is what matters for cost/latency.
+HardwareType = Literal[
+    "cpu",          # von Neumann general-purpose (Ollama on laptop CPU, AWS Graviton)
+    "gpu",          # massively parallel SIMT (Together, RunPod, local CUDA/Metal)
+    "lpu",          # deterministic tensor streaming (Groq)
+    "tpu",          # systolic array, matmul-specialized (Google Cloud)
+    "npu",          # on-device neural accelerator (Apple Neural Engine, Qualcomm Hexagon)
+    "wafer_scale",  # entire-wafer chip (Cerebras WSE)
+    "frontier_api", # closed-API, hardware opaque (Anthropic, OpenAI)
+]
 
 
 class CallRecord(BaseModel):
