@@ -65,20 +65,31 @@ Sploink core has only one dependency (Pydantic). The substrate SDKs are optional
 
 The simplest thing sploink does is observe every LLM call your agent makes and record a structured trace. You don't change any of your agent code — just call `sploink.wrap()` once at startup.
 
+### Runnable example (Groq — free tier, no credit card needed)
+
+```bash
+# 1. Install — with the Groq SDK
+pip install "sploink[groq]"
+
+# 2. Get a free Groq API key from https://console.groq.com/keys (signup takes 30s)
+export GROQ_API_KEY="gsk_..."
+```
+
 ```python
+# 3. Run this Python file
 import sploink
-from anthropic import Anthropic
+from groq import Groq
 
-sploink.wrap()   # one line — patches every supported SDK
+sploink.wrap()   # one line — patches every supported SDK at import time
 
-client = Anthropic()
-client.messages.create(
-    model="claude-haiku-4-5",
+client = Groq()
+client.chat.completions.create(
+    model="llama-3.1-8b-instant",
     max_tokens=20,
-    messages=[{"role": "user", "content": "is this spam?"}],
+    messages=[{"role": "user", "content": "is this spam? 'You won $1M!'"}],
 )
-client.messages.create(
-    model="claude-sonnet-4-6",
+client.chat.completions.create(
+    model="llama-3.1-8b-instant",
     max_tokens=300,
     messages=[{"role": "user", "content": "explain why in detail"}],
 )
@@ -86,23 +97,67 @@ client.messages.create(
 sploink.trace.print_summary()
 ```
 
-You get:
+You get something like:
 
 ```
-workflow 9f2c... | 2 calls | $0.0034 | 2400 ms
-  tokens: in=80 out=420
+workflow 9f2c... | 2 calls | $0.000022 | 1300 ms
+  tokens: in=80 out=320
   by step:
-    classify   1x  $0.0001   200ms
-    reason     1x  $0.0033  2200ms
+    classify   1x  $0.0000045   180ms
+    reason     1x  $0.0000175  1100ms
   by hardware:
-    frontier_api   2x  $0.0034
+    lpu        2x  $0.000022
 ```
 
-Every call is also persisted to `~/.sploink/traces/<workflow_id>.jsonl`. You can render the trace as HTML later:
+Every call is also persisted to `~/.sploink/traces/<workflow_id>.jsonl`. Render the trace as HTML later:
 
 ```bash
-python -m sploink.report                  # latest trace
-python -m sploink.canvas                  # force-directed view
+python -m sploink.report                  # static HTML report
+python -m sploink.canvas                  # force-directed graph view
+```
+
+### Same example with Anthropic instead
+
+If you already have an Anthropic account:
+
+```bash
+pip install "sploink[anthropic]"
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+```python
+import sploink
+from anthropic import Anthropic
+
+sploink.wrap()
+client = Anthropic()
+client.messages.create(
+    model="claude-haiku-4-5",
+    max_tokens=20,
+    messages=[{"role": "user", "content": "is this spam?"}],
+)
+sploink.trace.print_summary()
+```
+
+### Local-only example (no API key, no $)
+
+```bash
+pip install "sploink[ollama]"
+# Install Ollama from https://ollama.com/download, then:
+ollama pull llama3.1:8b   # ~4.7GB
+```
+
+```python
+import sploink
+from ollama import Client
+
+sploink.wrap()
+client = Client()
+client.chat(
+    model="llama3.1:8b",
+    messages=[{"role": "user", "content": "is this spam?"}],
+)
+sploink.trace.print_summary()
 ```
 
 ## Scoping a workflow — `sploink.workflow()`
@@ -165,33 +220,37 @@ with sploink.step("classify"):
 python -m sploink.architecture
 ```
 
-Opens a self-contained HTML showing the workflow ↔ substrate bipartite assignment for the current routing strategy. Use the dropdown to compare strategies.
+Writes a self-contained HTML file (`./sploink_architecture.html`) and attempts to open it in your default browser. If the browser launch fails (e.g. in a headless environment), the file is still written — open it manually.
+
+```bash
+python -m sploink.architecture --no-open   # write only, don't try to open
+python -m sploink.architecture --out path.html   # custom output path
+```
+
+Same behavior for `python -m sploink.dashboard`.
 
 ## Run the bench
 
-If you want to verify the routing thesis on a real benchmark (HotpotQA, multi-hop QA), install the bench extras and run:
+If you want to verify the routing thesis on a real benchmark (HotpotQA, multi-hop QA):
 
 ```bash
-# 1. Install
+# 1. Install (includes the bench package — shipped with the wheel as of v0.1.3)
 pip install "sploink[bench]"
 
-# 2. Pull the local model (free, ~4.7GB, takes a few minutes)
+# 2. Install Ollama from https://ollama.com/download and pull the local model
+#    (~4.7GB, takes a few minutes)
 ollama pull llama3.1:8b
 
-# 3. Set up credentials. The bench uses Groq for the cloud calls.
-#    Either export in your shell:
+# 3. Set GROQ_API_KEY for the cloud calls (free tier at https://console.groq.com/keys)
 export GROQ_API_KEY="gsk_..."
-
 #    Or create a .env file at your project root (bench auto-loads it):
-cat > .env << EOF
-GROQ_API_KEY=gsk_...
-EOF
+#    echo "GROQ_API_KEY=gsk_..." > .env
 
-# 4. Run
+# 4. Run (no need to clone the repo — bench is in the wheel)
 python -m bench.run --n 30 --graphs parallel_dag --strategy hw_routed
 ```
 
-Without `GROQ_API_KEY`, the bench will crash on the first Groq call with `KeyError: 'GROQ_API_KEY'`. The `cpu_only` strategy works without it (pure Ollama, no cloud), but `lpu_only` and `hw_routed` both need it.
+The `cpu_only` strategy works without `GROQ_API_KEY` (pure Ollama, no cloud), but `lpu_only` and `hw_routed` both need it — they'll `KeyError` on the first Groq call without one.
 
 See [Bench](bench.md) for methodology and current findings.
 

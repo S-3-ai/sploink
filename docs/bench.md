@@ -62,22 +62,31 @@ The next iteration will be a four-cell policy sweep that produces a **cost / qua
 ## Reproducing
 
 ```bash
+# 1. Install. The bench package is shipped in the wheel as of v0.1.3
+#    (before that you had to clone the repo).
 pip install "sploink[bench]"
+
+# 2. Install Ollama from https://ollama.com/download, then pull the local model:
 ollama pull llama3.1:8b
 
-# Each strategy at n=30
+# 3. Set GROQ_API_KEY for the cloud calls (free tier at https://console.groq.com/keys).
+export GROQ_API_KEY="gsk_..."
+
+# 4. Run each strategy at n=30
 python -m bench.run --n 30 --graphs parallel_dag --strategy cpu_only  --out bench/results/v2_cpu.csv
 python -m bench.run --n 30 --graphs parallel_dag --strategy lpu_only  --out bench/results/v2_lpu.csv
 python -m bench.run --n 30 --graphs parallel_dag --strategy hw_routed --out bench/results/v2_hw.csv
 
-# Intersection-F1 comparison (apples to apples across runs)
+# 5. Intersection-F1 comparison (apples to apples across runs)
 python -m bench.compare bench/results/v2_*.csv
 
-# Local dashboard with the savings hero + bar charts
+# 6. Local dashboard with the savings hero + bar charts
 python -m sploink.dashboard
 ```
 
 Approximate run cost: ~$0.005 in Groq API spend at n=30 (the `lpu_only` run). The other two strategies are free.
+
+**If `python -m bench.run` says "No module named 'bench'"**: you have a pre-v0.1.3 install. Upgrade with `pip install --upgrade "sploink[bench]"`.
 
 ## Caveats
 

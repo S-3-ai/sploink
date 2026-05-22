@@ -75,11 +75,28 @@ Use sploink just to see what your agent is doing. Don't change behavior. Good fo
 
 ```python
 import sploink
-sploink.wrap()
-# don't call enable_routing()
-# ... your agent runs normally, but every LLM call is recorded ...
+from groq import Groq
+
+sploink.wrap()                       # idempotent; safe to call multiple times
+# (intentionally NOT calling sploink.enable_routing() — observation only)
+
+client = Groq()                      # needs GROQ_API_KEY in env
+client.chat.completions.create(
+    model="llama-3.1-8b-instant",
+    max_tokens=20,
+    messages=[{"role": "user", "content": "is this spam?"}],
+)
+client.chat.completions.create(
+    model="llama-3.1-8b-instant",
+    max_tokens=200,
+    messages=[{"role": "user", "content": "explain why in 3 bullets"}],
+)
+
 sploink.trace.print_summary()
+# → workflow ... | 2 calls | $... | ...ms  (with per-step + per-hardware breakdown)
 ```
+
+Both calls are recorded as `CallRecord`s, classified by step type (heuristic based on token counts + output structure), and persisted to `~/.sploink/traces/`. **The customer code path is unchanged** — the only added line is `sploink.wrap()`.
 
 ### Pattern 2: gradual routing rollout
 
