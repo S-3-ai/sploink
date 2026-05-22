@@ -38,7 +38,8 @@ Sploink routes the cheap steps to cheap hardware, keeps the hard steps on capabl
 ## In 30 seconds
 
 ```bash
-pip install sploink
+pip install "sploink[anthropic]"   # or [groq], [ollama], [all]
+export ANTHROPIC_API_KEY="sk-ant-..."   # your provider's key, not sploink-specific
 ```
 
 ```python
