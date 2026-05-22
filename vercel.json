@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --upgrade pip && /tmp/venv/bin/pip install mkdocs mkdocs-material pymdown-extensions && /tmp/venv/bin/mkdocs build --site-dir public",
+  "buildCommand": "python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --upgrade pip && /tmp/venv/bin/pip install -e . mkdocs mkdocs-material pymdown-extensions && /tmp/venv/bin/python -m sploink.architecture --workflow parallel_dag --out docs/architecture.html --no-open && /tmp/venv/bin/python -m sploink.dashboard --results-dir bench/results --out docs/dashboard.html --no-open && /tmp/venv/bin/mkdocs build --site-dir public",
   "outputDirectory": "public",
   "installCommand": "echo 'no-op (install is part of buildCommand)'",
   "framework": null,

@@ -376,6 +376,31 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
     border-radius: 4px;
     font-size: 11px;
   }
+  /* viewer switcher — shared between architecture.html + dashboard.html */
+  .viewer-switcher {
+    display: flex;
+    gap: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px;
+  }
+  .viewer-switcher a {
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 999px;
+    color: var(--muted);
+    transition: all 0.15s ease;
+  }
+  .viewer-switcher a:hover { color: var(--text); }
+  .viewer-switcher a.active {
+    background: var(--text);
+    color: var(--bg);
+  }
+  .viewer-switcher .docs-link { color: var(--bipartite); padding: 6px 10px; }
+  .viewer-switcher .docs-link:hover { background: transparent; color: var(--bipartite); }
 </style>
 </head>
 <body>
@@ -386,6 +411,11 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
     <div class="subtitle">Layer 1: routing policy (workflow step → hardware type) &nbsp; · &nbsp; Layer 2: substrate selection (hardware type → provider instance)</div>
   </div>
   <div class="controls">
+    <nav class="viewer-switcher">
+      <a href="architecture.html" class="active">Architecture</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="/" class="docs-link">← Docs</a>
+    </nav>
     <span class="pill" id="workflow-pill"></span>
     <label for="strategy">routing strategy</label>
     <select id="strategy"></select>

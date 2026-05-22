@@ -42,6 +42,7 @@ nav:
   - Quickstart: quickstart.md
   - Concepts: concepts.md
   - Architecture: architecture.md
+  - Tools: tools.md
   - Examples: examples.md
   - Bench: bench.md
   - Roadmap: roadmap.md

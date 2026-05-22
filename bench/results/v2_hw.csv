@@ -1,0 +1,31 @@
+graph,strategy,example_id,question,gold,pred,f1,em,cost_usd,latency_ms,n_steps
+parallel_dag,hw_routed,5a8b57f25542995d1e6f1371,Were Scott Derrickson and Ed Wood of the same nationality?,yes,Yes,1.0000,1.0,0.000006,13721.6,4
+parallel_dag,hw_routed,5a8c7595554299585d9e36b6,What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?,Chief of Protocol,None,0.0000,0.0,0.000008,10174.6,4
+parallel_dag,hw_routed,5a85ea095542994775f606a8,"What science fantasy young adult series, told in first person, has a set of companion books narrating the stories of enslaved worlds and alien species?",Animorphs,Animorphs,1.0000,1.0,0.000012,12879.6,4
+parallel_dag,hw_routed,5adbf0a255429947ff17385a,Are the Laleli Mosque and Esma Sultan Mansion located in the same neighborhood?,no,No,1.0000,1.0,0.000007,8520.6,4
+parallel_dag,hw_routed,5a8e3ea95542995a26add48d,"The director of the romantic comedy ""Big Stone Gap"" is based in what New York city?","Greenwich Village, New York City",Manhattan,0.0000,0.0,0.000008,9663.3,4
+parallel_dag,hw_routed,5abd94525542992ac4f382d2,2014 S/S is the debut album of a South Korean boy group that was formed by who?,YG Entertainment,YG Entertainment,1.0000,1.0,0.000009,11342.4,4
+parallel_dag,hw_routed,5a85b2d95542997b5ce40028,Who was known by his stage name Aladin and helped organizations improve their performance as a consultant?,Eenasul Fateh,Eenasul Fateh,1.0000,1.0,0.000008,11314.6,4
+parallel_dag,hw_routed,5a87ab905542996e4f3088c1,The arena where the Lewiston Maineiacs played their home games can seat how many people?,"3,677 seated","Up to 4,000 people",0.0000,0.0,0.000008,9682.1,4
+parallel_dag,hw_routed,5a7bbb64554299042af8f7cc,"Who is older, Annie Morton or Terry Richardson?",Terry Richardson,Terry Richardson,1.0000,1.0,0.000006,9172.8,4
+parallel_dag,hw_routed,5a8db19d5542994ba4e3dd00,Are Local H and For Against both from the United States?,yes,Yes,1.0000,1.0,0.000011,13168.5,4
+parallel_dag,hw_routed,5a7166395542994082a3e814,"What is the name of the fight song of the university whose main campus is in Lawrence, Kansas and whose branch campuses are in the Kansas City metropolitan area?",Kansas Song,"""Rock Chalk, Jayhawk""",0.0000,0.0,0.000009,9424.6,4
+parallel_dag,hw_routed,5a877e5d5542993e715abf7d,"What screenwriter with credits for ""Evolution"" co-wrote a film starring Nicolas Cage and Téa Leoni?",David Weissman,David Weissman,1.0000,1.0,0.000007,9678.7,4
+parallel_dag,hw_routed,5ab3b0bf5542992ade7c6e39,What year did Guns N Roses perform a promo for a movie starring Arnold Schwarzenegger as a former New York Police detective?,1999,1999,1.0000,1.0,0.000011,12626.6,4
+parallel_dag,hw_routed,5ab56e32554299637185c594,Are Random House Tower and 888 7th Avenue both used for real estate?,no,Yes,0.0000,0.0,0.000009,11062.3,4
+parallel_dag,hw_routed,5ab6d09255429954757d337d,The football manager who recruited David Beckham managed Manchester United during what timeframe?,from 1986 to 2013,Alex Ferguson's tenure,0.0000,0.0,0.000007,9304.0,4
+parallel_dag,hw_routed,5a75e05c55429976ec32bc5f,Brown State Fishing Lake is in a country that has a population of how many inhabitants ?,"9,984",United States,0.0000,0.0,0.000006,9126.9,4
+parallel_dag,hw_routed,5ab3e45655429976abd1bcd4,The Vermont Catamounts men's soccer team currently competes in a conference that was formerly known as what from 1988 to 1996?,the North Atlantic Conference,North Atlantic Conference,1.0000,1.0,0.000008,9768.9,4
+parallel_dag,hw_routed,5ab29c24554299449642c932,Are Giuseppe Verdi and Ambroise Thomas both Opera composers ?,yes,Yes,1.0000,1.0,0.000010,11434.5,4
+parallel_dag,hw_routed,5ae0d4c9554299603e418468,Roger O. Egeberg was Assistant Secretary for Health and Scientific Affairs during the administration of a president that served during what years?,1969 until 1974,1969-1974,0.0000,0.0,0.000008,9418.8,4
+parallel_dag,hw_routed,5a8133725542995ce29dcbdb,"Which writer was from England, Henry Roth or Robert Erskine Childers?",Robert Erskine Childers DSC,Robert Erskine Childers,0.8571,0.0,0.000010,11521.0,4
+parallel_dag,hw_routed,5ae7a8175542993210983ed8,Which other Mexican Formula One race car driver has held the podium besides the Force India driver born in 1990?,Pedro Rodríguez,Pedro Rodríguez,1.0000,1.0,0.000008,9432.3,4
+parallel_dag,hw_routed,5ae6050f55429929b0807a5e,This singer of A Rather Blustery Day also voiced what hedgehog?,Sonic,Dr. Robotnik,0.0000,0.0,0.000009,11025.7,4
+parallel_dag,hw_routed,5adddccd5542997dc7907069,"Aside from the Apple Remote, what other device can control the program Apple Remote was originally designed to interact with?",keyboard function keys,Apple Remote Desktop,0.0000,0.0,0.000007,9445.1,4
+parallel_dag,hw_routed,5ae2070a5542994d89d5b313,"Which performance act has a higher instrument to person ratio, Badly Drawn Boy or Wolf Alice? ",Badly Drawn Boy,Wolf Alice,0.0000,0.0,0.000007,9044.3,4
+parallel_dag,hw_routed,5ae22b8d554299234fd0440f,What was the father of Kasper Schmeichel voted to be by the IFFHS in 1992?,World's Best Goalkeeper,No information is available about Kasper Schmeichel's father,0.0000,0.0,0.000011,12504.0,4
+parallel_dag,hw_routed,5a722b8655429971e9dc9329,Who was the writer of These Boots Are Made for Walkin' and who died in 2007?,Barton Lee Hazlewood,Lee Hazlewood,0.8000,0.0,0.000011,11161.6,4
+parallel_dag,hw_routed,5adf37a95542995ec70e8f97,"The 2011–12 VCU Rams men's basketball team, led by third year head coach Shaka Smart, represented Virginia Commonwealth University which was founded in what year?",1838,1838,1.0000,1.0,0.000008,10513.6,4
+parallel_dag,hw_routed,5abd259d55429924427fcf1a,"Are both Dictyosperma, and Huernia described as a genus?",yes,Yes,1.0000,1.0,0.000010,7410.3,4
+parallel_dag,hw_routed,5a828c8355429966c78a6a50,Kaiser Ventures corporation was founded by an American industrialist who became known as the father of modern American shipbuilding?,Henry J. Kaiser,Henry J Kaiser,1.0000,1.0,0.000010,11628.8,4
+parallel_dag,hw_routed,5a8a3e745542996c9b8d5e70,"What is the name for the adventure in ""Tunnels and Trolls"", a game designed by Ken St. Andre?",Arena of Khazan,Arena of Khazan,1.0000,1.0,0.000009,9874.5,4

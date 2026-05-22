@@ -271,6 +271,31 @@ _TEMPLATE = r"""<!DOCTYPE html>
     text-align: center;
   }
   footer code { background: var(--panel); padding: 2px 6px; border-radius: 4px; }
+  /* viewer switcher — shared between architecture.html + dashboard.html */
+  .viewer-switcher {
+    display: flex;
+    gap: 4px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px;
+  }
+  .viewer-switcher a {
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 999px;
+    color: var(--muted);
+    transition: all 0.15s ease;
+  }
+  .viewer-switcher a:hover { color: var(--text); }
+  .viewer-switcher a.active {
+    background: var(--text);
+    color: var(--bg);
+  }
+  .viewer-switcher .docs-link { color: var(--accent); padding: 6px 10px; }
+  .viewer-switcher .docs-link:hover { background: transparent; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -280,7 +305,14 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <h1>Sploink — bench dashboard</h1>
     <div class="subtitle" id="data-src"></div>
   </div>
-  <div class="subtitle" id="shared-meta"></div>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <nav class="viewer-switcher">
+      <a href="architecture.html">Architecture</a>
+      <a href="dashboard.html" class="active">Dashboard</a>
+      <a href="/" class="docs-link">← Docs</a>
+    </nav>
+    <div class="subtitle" id="shared-meta"></div>
+  </div>
 </header>
 
 <main>
