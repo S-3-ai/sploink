@@ -58,6 +58,10 @@ class CallRecord(BaseModel):
     cost_usd: float
     substrate: str | None = None
     hardware_type: HardwareType | None = None
+    # Monotonic timestamps (ms, relative to process start via time.perf_counter).
+    # Used by Graph.from_trace() to detect parallelism via temporal overlap.
+    started_at_ms: float | None = None
+    finished_at_ms: float | None = None
 
 
 _workflow_id: ContextVar[str | None] = ContextVar("_workflow_id", default=None)
@@ -74,6 +78,63 @@ def current_workflow_id() -> str:
         wid = uuid.uuid4().hex[:12]
         _workflow_id.set(wid)
     return wid
+
+
+class workflow:
+    """Context manager that scopes one workflow.
+
+    Inside the block, every LLM call wrapped by sploink.wrap() is attributed
+    to a fresh workflow_id. On exit, you can recover the trace and infer the
+    workflow Graph from it.
+
+    Usage:
+        import sploink
+        sploink.wrap()
+        with sploink.workflow() as wf:
+            client.chat.completions.create(...)   # observed
+            client.chat.completions.create(...)   # observed
+            # ... any number of LLM calls, any SDK ...
+
+        # After exit:
+        graph = wf.graph()        # inferred sploink.graph.Graph
+        records = wf.records()    # the raw CallRecord list
+        summary = wf.summary()    # cost / latency / step-type aggregates
+
+    Works under threading and asyncio — each task or thread gets its own
+    workflow_id via contextvars. Concurrent workflows do not interleave.
+    """
+    def __init__(self, workflow_id: str | None = None) -> None:
+        # If the caller provided an id (e.g., FastAPI request id), use it;
+        # otherwise we mint a fresh one.
+        self._provided_id = workflow_id
+        self._token: Any = None
+        self.id: str = ""
+
+    def __enter__(self) -> "workflow":
+        self.id = self._provided_id or uuid.uuid4().hex[:12]
+        self._token = _workflow_id.set(self.id)
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        if self._token is not None:
+            _workflow_id.reset(self._token)
+
+    def records(self) -> list[CallRecord]:
+        """The observed CallRecords for this workflow."""
+        return list(_records_by_workflow.get(self.id, []))
+
+    def graph(self, method: str = "sequential") -> Any:
+        """Infer a sploink.graph.Graph from this workflow's trace.
+
+        method='sequential' is the safe default (no parallelism assumed).
+        method='overlap' uses timestamps to detect concurrent calls.
+        """
+        from sploink.graph import Graph
+        return Graph.from_trace(self.records(), method=method)  # type: ignore[arg-type]
+
+    def summary(self) -> dict[str, Any]:
+        """Aggregate stats for this workflow (delegates to module summary())."""
+        return summary(workflow_id=self.id)
 
 
 def set_workflow_id(workflow_id: str) -> None:

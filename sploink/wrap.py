@@ -57,7 +57,8 @@ def _wrap_anthropic() -> None:
         # Otherwise: original observation behavior.
         t0 = time.perf_counter()
         response = original_create(self, *args, **kwargs)
-        latency_ms = (time.perf_counter() - t0) * 1000
+        _t1 = time.perf_counter()
+        latency_ms = (_t1 - t0) * 1000
 
         tokens_in = getattr(response.usage, "input_tokens", None) if hasattr(response, "usage") else None
         tokens_out = getattr(response.usage, "output_tokens", None) if hasattr(response, "usage") else None
@@ -81,6 +82,8 @@ def _wrap_anthropic() -> None:
                 tokens_out=tokens_out,
                 output_structure=output_structure,
                 latency_ms=latency_ms,
+                started_at_ms=t0 * 1000,
+                finished_at_ms=_t1 * 1000,
                 cost_usd=cost_usd(model, tokens_in or 0, tokens_out or 0, ANTHROPIC),
                 substrate="anthropic",
                 hardware_type="frontier_api",
@@ -116,7 +119,8 @@ def _wrap_groq() -> None:
         # Otherwise: original observation behavior.
         t0 = time.perf_counter()
         response = original_create(self, *args, **kwargs)
-        latency_ms = (time.perf_counter() - t0) * 1000
+        _t1 = time.perf_counter()
+        latency_ms = (_t1 - t0) * 1000
 
         usage = getattr(response, "usage", None)
         tokens_in = getattr(usage, "prompt_tokens", None) if usage else None
@@ -141,6 +145,8 @@ def _wrap_groq() -> None:
                 tokens_out=tokens_out,
                 output_structure=output_structure,
                 latency_ms=latency_ms,
+                started_at_ms=t0 * 1000,
+                finished_at_ms=_t1 * 1000,
                 cost_usd=cost_usd(model, tokens_in or 0, tokens_out or 0, GROQ),
                 substrate="groq",
                 hardware_type="lpu",
@@ -172,7 +178,8 @@ def _wrap_openai() -> None:
 
         t0 = time.perf_counter()
         response = original_create(self, *args, **kwargs)
-        latency_ms = (time.perf_counter() - t0) * 1000
+        _t1 = time.perf_counter()
+        latency_ms = (_t1 - t0) * 1000
 
         usage = getattr(response, "usage", None)
         tokens_in = getattr(usage, "prompt_tokens", None) if usage else None
@@ -197,6 +204,8 @@ def _wrap_openai() -> None:
                 tokens_out=tokens_out,
                 output_structure=output_structure,
                 latency_ms=latency_ms,
+                started_at_ms=t0 * 1000,
+                finished_at_ms=_t1 * 1000,
                 cost_usd=0.0,
                 substrate="openai",
                 hardware_type="frontier_api",
@@ -219,7 +228,8 @@ def _wrap_together() -> None:
         model = kwargs.get("model", "unknown")
         t0 = time.perf_counter()
         response = original_create(self, *args, **kwargs)
-        latency_ms = (time.perf_counter() - t0) * 1000
+        _t1 = time.perf_counter()
+        latency_ms = (_t1 - t0) * 1000
 
         usage = getattr(response, "usage", None)
         tokens_in = getattr(usage, "prompt_tokens", None) if usage else None
@@ -242,6 +252,8 @@ def _wrap_together() -> None:
                 tokens_out=tokens_out,
                 output_structure=output_structure,
                 latency_ms=latency_ms,
+                started_at_ms=t0 * 1000,
+                finished_at_ms=_t1 * 1000,
                 cost_usd=cost_usd(model, tokens_in or 0, tokens_out or 0, TOGETHER),
                 substrate="together",
                 hardware_type="gpu",
@@ -275,7 +287,8 @@ def _wrap_anthropic_async() -> None:
 
         t0 = time.perf_counter()
         response = await original_create(self, *args, **kwargs)
-        latency_ms = (time.perf_counter() - t0) * 1000
+        _t1 = time.perf_counter()
+        latency_ms = (_t1 - t0) * 1000
 
         tokens_in = getattr(response.usage, "input_tokens", None) if hasattr(response, "usage") else None
         tokens_out = getattr(response.usage, "output_tokens", None) if hasattr(response, "usage") else None
@@ -318,7 +331,8 @@ def _wrap_groq_async() -> None:
 
         t0 = time.perf_counter()
         response = await original_create(self, *args, **kwargs)
-        latency_ms = (time.perf_counter() - t0) * 1000
+        _t1 = time.perf_counter()
+        latency_ms = (_t1 - t0) * 1000
 
         usage = getattr(response, "usage", None)
         tokens_in = getattr(usage, "prompt_tokens", None) if usage else None
@@ -362,7 +376,8 @@ def _wrap_openai_async() -> None:
 
         t0 = time.perf_counter()
         response = await original_create(self, *args, **kwargs)
-        latency_ms = (time.perf_counter() - t0) * 1000
+        _t1 = time.perf_counter()
+        latency_ms = (_t1 - t0) * 1000
 
         usage = getattr(response, "usage", None)
         tokens_in = getattr(usage, "prompt_tokens", None) if usage else None
@@ -402,7 +417,8 @@ def _wrap_ollama_async() -> None:
         messages = kwargs.get("messages") or []
         t0 = time.perf_counter()
         response = await original_chat(self, *args, **kwargs)
-        latency_ms = (time.perf_counter() - t0) * 1000
+        _t1 = time.perf_counter()
+        latency_ms = (_t1 - t0) * 1000
 
         tokens_in = getattr(response, "prompt_eval_count", None)
         tokens_out = getattr(response, "eval_count", None)
@@ -461,6 +477,8 @@ def _wrap_ollama() -> None:
                 tokens_out=tokens_out,
                 output_structure=output_structure,
                 latency_ms=latency_ms,
+                started_at_ms=t0 * 1000,
+                finished_at_ms=_t1 * 1000,
                 cost_usd=cost_usd(model, tokens_in or 0, tokens_out or 0, OLLAMA),
                 substrate="ollama",
                 hardware_type="edge",
