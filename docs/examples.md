@@ -98,6 +98,51 @@ sploink.trace.print_summary()
 
 Both calls are recorded as `CallRecord`s, classified by step type (heuristic based on token counts + output structure), and persisted to `~/.sploink/traces/`. **The customer code path is unchanged** — the only added line is `sploink.wrap()`.
 
+### Pattern 1b: scope a workflow with `sploink.workflow()`
+
+When you want a clean workflow boundary (one workflow_id, recoverable Graph on exit), wrap your agent code in `sploink.workflow()`:
+
+```python
+import sploink
+from groq import Groq
+
+sploink.wrap()
+client = Groq()
+
+with sploink.workflow() as wf:
+    client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        max_tokens=20,
+        messages=[{"role": "user", "content": "is this spam?"}],
+    )
+    client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        max_tokens=200,
+        messages=[{"role": "user", "content": "summarize that decision"}],
+    )
+
+# After the context exits:
+print(wf.records())              # raw CallRecord list
+print(wf.graph().topological_layers())   # sploink.Graph inferred from the trace
+print(wf.summary())              # cost / latency / per-step / per-hardware aggregates
+```
+
+Use this when you want the inferred workflow Graph back as a Python object (for routing analysis, visualization, or RL training data). Without `workflow()`, traces still get recorded — they just aren't grouped into a recoverable Graph object.
+
+`sploink.workflow()` vs `sploink.step()` — they're often confused:
+
+- **`sploink.workflow()`** — scopes a workflow. Use to mark "everything inside is one agent run."
+- **`sploink.step("label")`** — forces a step label on calls inside. Use when the heuristic labeler picks the wrong label.
+
+They compose:
+
+```python
+with sploink.workflow():
+    with sploink.step("classify"):
+        client.chat.completions.create(...)     # forced label = "classify"
+    client.chat.completions.create(...)         # heuristic label
+```
+
 ### Pattern 2: gradual routing rollout
 
 Turn on routing for a subset of step types first. Edit `sploink/router.py:DEFAULT_RULES` or define your own table:

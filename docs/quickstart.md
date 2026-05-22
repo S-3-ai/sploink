@@ -46,20 +46,23 @@ For production / CI: use your platform's secret manager (Vercel envs, AWS Secret
 
 ## Install
 
+**Don't install bare `pip install sploink`** if you intend to follow the examples below — the examples call into provider SDKs (Anthropic, Groq, Ollama) which aren't pulled by the bare install. Use the extras that match the substrates you'll use:
+
 ```bash
-# Core install (just the routing/observability layer)
-pip install sploink
-
-# With specific substrate SDKs:
-pip install "sploink[anthropic]"
+# Most quickstart examples below use Groq (free tier — recommended)
 pip install "sploink[groq]"
-pip install "sploink[ollama]"
 
-# Everything:
-pip install "sploink[all]"
+# Alternatives:
+pip install "sploink[anthropic]"
+pip install "sploink[ollama]"
+pip install "sploink[all]"        # all substrate SDKs
+
+# If you really want only the routing/observability layer
+# (no substrate SDKs — useful for libraries that vendor their own clients)
+pip install sploink
 ```
 
-Sploink core has only one dependency (Pydantic). The substrate SDKs are optional — install only the ones you actually use.
+Sploink core has only one dependency (Pydantic). The substrate SDKs are optional, but the quickstart examples on this page assume `[groq]` unless noted.
 
 ## Mode 1 — observability only
 
@@ -172,9 +175,17 @@ sploink.wrap()
 client = Anthropic()
 
 with sploink.workflow() as wf:
-    client.messages.create(...)   # observed
-    client.messages.create(...)   # observed
-    # ... any number of LLM calls, any SDK ...
+    client.messages.create(
+        model="claude-haiku-4-5",
+        max_tokens=20,
+        messages=[{"role": "user", "content": "is this spam?"}],
+    )
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=300,
+        messages=[{"role": "user", "content": "explain why"}],
+    )
+    # any number of LLM calls from any wrapped SDK — they all get recorded
 
 # After exit:
 print(wf.records())               # the raw CallRecord list

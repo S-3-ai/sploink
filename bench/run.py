@@ -25,12 +25,25 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-from bench import dataset as dataset_mod
-from bench import score as score_mod
-from bench.graphs import GRAPHS, execute
-from bench.strategies import STRATEGIES
+# Optional bench-only deps: give a clear error if the user installed bare
+# `sploink` instead of `sploink[bench]`. The bench module ships in the wheel
+# (so `python -m bench.run --help` reaches this point) but needs extras to run.
+try:
+    from dotenv import load_dotenv
+    from bench import dataset as dataset_mod
+    from bench import score as score_mod
+    from bench.graphs import GRAPHS, execute
+    from bench.strategies import STRATEGIES
+except ImportError as e:
+    missing = str(e).split("'")[1] if "'" in str(e) else str(e)
+    sys.stderr.write(
+        f"\nbench/run.py: missing dependency '{missing}'.\n"
+        f"The sploink bench requires extra packages (dotenv, datasets, anthropic, groq, ollama).\n"
+        f"Install them with:\n\n    pip install --upgrade 'sploink[bench]'\n\n"
+        f"(You probably ran `pip install sploink` — the bench module ships in the wheel for\n"
+        f"discoverability, but it needs the [bench] extra to actually run.)\n\n"
+    )
+    sys.exit(1)
 
 
 @dataclass
