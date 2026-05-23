@@ -28,3 +28,37 @@
   color: #0f172a;
   font-weight: 600;
 }
+
+/* Wider right-side TOC so long subheadings don't get truncated mid-word.
+   Material defaults to ~12rem; sploink's subheadings (e.g. "Set environment
+   variables for the providers you'll use") need more room. */
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--secondary {
+    width: 14rem;
+  }
+  .md-sidebar--secondary .md-nav__title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .md-sidebar--secondary .md-nav__link {
+    font-size: 0.75rem;
+    line-height: 1.35;
+    /* Allow wrap instead of truncating */
+    white-space: normal;
+    word-break: break-word;
+  }
+  /* Nested (H3) entries — slight indent, smaller, muted */
+  .md-sidebar--secondary .md-nav .md-nav .md-nav__link {
+    font-size: 0.72rem;
+    padding-left: 0.5rem;
+  }
+}
+
+/* Bump main content max-width a touch so the wider TOC doesn't crowd it */
+@media screen and (min-width: 76.25em) {
+  .md-grid {
+    max-width: 64rem;
+  }
+}
