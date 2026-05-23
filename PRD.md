@@ -1,33 +1,41 @@
 # Product Requirements Document: Sploink
 
-*Compute meta-layer for AI agents: discovery, joint optimization, and per-step routing across heterogeneous substrates*
+*Composable AI for inference compute: per-step routing across (model × hardware × provider) combinations, driven by a curated index and user-declared optimization weights.*
 
 **Author**: Tim Nguyen
 **Date**: 2026-05-23
-**Status**: Draft v0.4 — pre-MVP. Thesis expanded from "route across known substrates" to "discover + jointly optimize (model × hardware × provider) per workflow step."
+**Status**: Draft v0.5 — pre-MVP. Thesis narrowed and sharpened: sploink is **composable AI for inference compute**. A curated index of validated (model × hardware × provider) combinations + objective-weighted scoring + per-step dispatch. NOT autonomous discovery, NOT learned routing, NOT auto-provisioning (those are research directions, not committed phases).
 
 ---
 
 ## 1. Summary
 
-Sploink is the **compute meta-layer for AI agents**. Given a workflow and an objective (low cost / high quality / latency budget), Sploink does four things:
+**Sploink is composable AI for inference compute.** It treats `(model, hardware architecture, provider)` as three independent dimensions that get composed per workflow step, driven by user-declared optimization weights (cost / latency / quality) against a curated index of validated combinations.
 
-1. **Decomposes** the workflow into typed steps (classify, rerank, extract, reason, verify, …).
-2. **Discovers** the universe of viable (model × hardware × provider) combinations for each step type — across user-owned compute, managed clouds (Together / Modal / RunPod), specialized hardware (Groq LPU, Cerebras), edge devices, and marketplaces (x402 networks like Conduit).
-3. **Jointly optimizes** the per-step assignment of (model, hardware, provider) against the user's objective, using a mix of empirical bench-on-demand and learned routing.
-4. **Dispatches** each step to its chosen combination — falling back to the user's existing provider accounts where they want them, or auto-provisioning fresh capacity (Modal / RunPod / spot GPU rentals) where they don't.
+Concretely, sploink does four things, each as bounded and unmagical as possible:
 
-Developers wrap their existing agent code in one line; Sploink takes it from there. The user never thinks about "should I use Together's Llama 70B or Groq's 8B for this step" — Sploink decides, dispatches, observes, and improves the decision over time.
+1. **Intercepts** every LLM call in the customer's agent code via a one-line `sploink.wrap()`.
+2. **Classifies** each intercepted call by step type (classify, rerank, extract, reason, verify, …).
+3. **Picks** a `(model, provider, hardware)` Stack from a curated index by scoring candidate Stacks against the user's declared optimization weights.
+4. **Dispatches** the call to the chosen Stack via the appropriate provider SDK.
 
-**Core thesis (the compression — v0.4 expanded):**
+The customer never writes substrate code, never benchmarks combinations, never tunes routing rules. They declare `optimize_for={"cost": 0.6, "latency": 0.3, "quality": 0.1}` and sploink picks combinations from its curated index that maximize the weighted score per step.
 
-> ai agent workflow → typed steps → for each step: discover candidate (model × hardware × provider) options → jointly optimize for cost + quality + latency → dispatch (auto-provisioning if needed) → observe → re-optimize → crystallize winning patterns into reusable skills
+**Core thesis (the compression — v0.5):**
 
-The earlier framing ("route to the right substrate per step") was correct but incomplete: it assumed the user already had access to the substrates and that routing was the only decision. The expanded thesis treats **substrate availability itself as a runtime concern**. Sploink discovers, evaluates, and provisions compute on the user's behalf, choosing models and hardware jointly rather than separately.
+> ai agent workflow → typed steps → for each step, score curated `(model × hardware × provider)` Stacks by user weights → pick the highest-scoring Stack → dispatch → record telemetry → expand the index as new combinations get validated
 
-An agent workflow is a graph of *typed* heterogeneous steps. Each step type has a different cost/quality/latency Pareto frontier over the universe of available (model, hardware, provider) combinations. Today developers manually pick one frontier API for everything — overpaying 3–10× on cheap steps and missing better trade-offs they don't know exist. **Sploink does the discovery, optimization, and provisioning so the developer just writes their agent.**
+**The product is the curated index** (knowledge of which combinations work for which workloads) **plus the scoring + dispatch runtime** (the thin shim that turns "optimize for X" into actual routed calls). The index is sploink's defensible value; the runtime is the unavoidable scaffolding.
 
-**Layer positioning:** Sploink sits at the compute-meta layer, *above* inference providers and inference orchestration. We consume everything below as substrates — provider APIs (Anthropic, Groq, Together, OpenAI), in-process engines (vLLM, llama.cpp, MLX), GPU marketplaces (RunPod, Vast.ai, Salad), payment-routed networks (x402 marketplaces like Conduit), and managed serverless platforms (Modal). We are not building an inference engine, a GPU marketplace, or a payments network. **The product is the discovery + joint-optimization + routing brain that sits above all of them.**
+**Three deliberate non-features** (cut from v0.4 over-reach):
+
+- **No autonomous discovery**: sploink ships with a curated catalog. It does not crawl OpenRouter / Vast.ai / Conduit to discover combinations at runtime. New entries are added through validation work, not autonomous indexing.
+- **No learned routing model**: the scoring function is a deterministic weighted sum over normalized metrics from the curated index. No ML, no bandits, no bayesian optimization in v1.
+- **No auto-provisioning**: sploink does not rent GPUs from Modal / RunPod / Vast on the user's behalf. The user (or their provider) brings the compute; sploink just routes to it.
+
+These three are real possible directions for a v2+ product, but **building them in v1 would dilute the core value (curated knowledge) with speculative complexity**.
+
+**Layer positioning:** Sploink sits *above* inference providers and *inside* the customer's agent code. It is **composable AI at the application layer** — analogous to TVM/XLA at the compiler layer (which treated model architecture × hardware target × execution schedule as composable axes), or to OpenRouter at the model layer (which treats model × provider as composable). The hardware-architecture-aware, per-workflow-step composition niche is empty at the product layer; sploink is built to occupy it.
 
 ---
 
@@ -51,27 +59,33 @@ The opportunity: **make per-step substrate routing a one-line code change.**
 
 ---
 
-## 3. Vision — five-phase arc
+## 3. Vision — three-phase arc (deliberately bounded)
 
-Sploink is built as a five-phase stack. Each phase unlocks the next; each phase is a chapter of the same product, not a separate company. Phases 2.5 and 3 are new in v0.4; previously phase 2 conflated routing across known substrates with the larger discovery + auto-provisioning vision.
+Sploink is built as a three-phase product. Each phase has explicit, narrow scope. The v0.4 expansion (discovery, joint optimization, auto-provisioning) is moved to **research directions** below — interesting, possibly future, not committed.
 
-- **Phase 1 (now, v0.1.x shipped May 22 2026): Workflow telemetry and per-step routing across user-known substrates.** Drop-in `sploink.wrap()`. Static routing table for known providers (Anthropic, Groq, Ollama, OpenAI, Together). Bench validates the cost-savings thesis (92.5% cost reduction on HotpotQA at -0.13 F1). Live on PyPI as `sploink`.
-- **Phase 2 (next 4–8 weeks): Substrate discovery layer.** Sploink stops requiring the user to enumerate their substrates. It calls existing aggregator APIs (OpenRouter, RunPod, Vast.ai, Together, Modal, Replicate) to discover available (model × hardware × provider) combinations in real time. A curated "compute leaderboard" emerges as user-facing docs surface; a `sploink benchmark` CLI runs on-demand evals against discovered combinations.
-- **Phase 2.5 (months 2–6): Joint optimization brain.** Replace the static routing table with a learned + bandit-driven optimizer that jointly searches (model × hardware × provider) for each step type, optimizing user-declared objectives (min cost, min latency, max quality, or Pareto-frontier traversal). Cold-start via curated benchmarks; warm up via per-customer telemetry. The router's decisions stop being rules and start being learned policies.
-- **Phase 3 (months 6–12): Auto-provisioning.** Sploink doesn't just pick a combination — it rents the GPU, deploys the model, serves the calls, and tears down idle capacity. Via Modal, RunPod, Replicate, dedicated Together endpoints, and (eventually) direct rentals via Vast.ai or x402 marketplaces. The user never opens a provisioning dashboard.
-- **Phase 4 (months 12–24): Skill distillation.** Crystallized routing-policy + observed-trace patterns compress into substrate-tuned specialized SLMs that outperform the discovery-layer's choices on specific workloads. Telemetry from Phases 1–3 *is* the training signal that no incumbent has.
-- **Phase 5 (year 2+): Agent substrate layer.** Once skill libraries, joint optimization, and auto-provisioning reach scale, Sploink becomes the runtime substrate for the broader agentic economy. Composition search, just-in-time agent synthesis, programmatic skill marketplaces.
+- **Phase 1 (now, v0.1.x shipped May 22 2026): Per-step routing across known substrates.** `sploink.wrap()` intercepts LLM calls; static routing table maps step type to one of `{cpu_only, lpu_only, hw_routed}` strategies. Lives on PyPI. Bench validates 92.5% cost reduction on HotpotQA (at a real -0.13 F1 trade-off under the default policy). Currently shipping.
+- **Phase 2 (next 4-8 weeks): Curated index + objective-weighted scoring.** Replace the hand-coded routing table with `sploink.index` — a curated list of validated `(step_type, model, provider, hardware)` Recommendations, each with measured cost / latency / quality. User declares `optimize_for={"cost": w1, "latency": w2, "quality": w3}`. A deterministic scoring function picks the highest-scoring Recommendation per step. **`sploink.Stack` becomes a first-class abstraction** — a `(model, provider, hardware)` triple users can declare in their own code and add to the index.
+- **Phase 3 (months 3-6): Index expansion + telemetry feedback.** Add more Recommendations through validation work (each entry requires a benchmark run we trust). Allow customers to contribute Stacks they've validated. Customer-side telemetry surfaces when a customer's traffic exposes a combination missing from the index; sploink staff validates and adds it.
 
-Trigger conditions for advancing phases:
-- Phase 1 → 2: ≥1 paying customer running production workflows on Sploink's routing layer
-- Phase 2 → 2.5: ≥3 customers with workloads where the discovery layer surfaces clearly better options than their current provider choice
-- Phase 2.5 → 3: joint optimizer demonstrably outperforms static routing on ≥3 representative workloads; customer requests auto-provisioning explicitly
-- Phase 3 → 4: auto-provisioning at scale produces enough telemetry to train substrate-tuned SLMs
-- Phase 4 → 5: skill library reaches K distinct substrate-tuned variants used across customers
+That's the full committed roadmap. **Three phases. Bounded.** Each is buildable by one founder + occasional part-time help; each has a clear customer-value story; none requires research-grade work that might fail.
 
-**Do not pursue any phase as a separate company.** They are the natural output of executing the prior phase well. Resist the urge to spin up adjacent companies as new substrate layers reveal themselves; write each into the PRD as a future phase with a trigger condition.
+Trigger conditions:
+- Phase 1 → 2: bench validates routing-thesis (done); ≥1 paying or design-partner customer running on Phase 1 (current gating function).
+- Phase 2 → 3: ≥3 customers with workloads where curated-index recommendations meaningfully beat their current setup; index has ≥30 validated Recommendations across ≥5 step types.
 
-**The single most common failure mode this PRD is trying to prevent**: trying to build Phases 2.5–3 before Phase 1 has a paying customer. Discovery + joint optimization + auto-provisioning is a multi-quarter, multi-engineer project. Phase 1 is buildable by one founder and is the proof point that the deeper thesis is worth pursuing.
+**Possible research directions (NOT committed phases — explicitly de-prioritized):**
+
+These were Phase 2/2.5/3 in v0.4 and have been demoted to research directions because each one is a multi-engineer multi-quarter project that would dilute Phase 2's focus:
+
+- *Autonomous discovery via aggregator APIs* (OpenRouter, Vast.ai, RunPod, Conduit). Possible, but adds API integration burden and the discovered combinations still need validation work before being trustworthy. Better to grow the curated index manually until customer pull justifies automation.
+- *Learned routing model* trained on cross-customer telemetry. Possible, but the deterministic scoring function works fine for the first 100 customers; ML adds complexity without clear value gain at small scale.
+- *Auto-provisioning* via Modal / RunPod / Vast.ai. Possible, but the customer-money-on-the-line surface (runaway costs, leaked instances) is the highest-risk thing sploink could touch. Defer until there is sustained customer demand AND ops headcount to monitor it.
+- *Skill distillation into substrate-tuned SLMs.* Real research direction; requires a training-infra team. Not solo-founder buildable.
+- *Marketplace + agent substrate layer.* Late-game positioning; emerges from earlier phases working at scale.
+
+**Discipline: do not pursue any of the research directions in v1.** They are written down so they aren't forgotten, but Phase 2 is the only committed scope for the next 6 months. Each research direction's *trigger condition* is the same: a paying customer asks for it. Until then, the right answer is "v2 roadmap."
+
+**The single most common failure mode this PRD is trying to prevent (v0.5 update):** doing speculative engineering on the research directions instead of grinding on Phase 2 fundamentals (curated index, scoring, customer integrations). Phase 2's value is the curation work itself — the validated Recommendations — not any single new algorithm. Resist the urge to build the AutoML version.
 
 ## 3.1 The 24-month developer experience
 
