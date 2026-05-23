@@ -1,24 +1,33 @@
 # Product Requirements Document: Sploink
 
-*Workflow-aware substrate routing and skill generation for AI agents*
+*Compute meta-layer for AI agents: discovery, joint optimization, and per-step routing across heterogeneous substrates*
 
 **Author**: Tim Nguyen
-**Date**: 2026-05-17
-**Status**: Draft v0.3 — pre-MVP (thesis stabilized after Gimlet competitive analysis)
+**Date**: 2026-05-23
+**Status**: Draft v0.4 — pre-MVP. Thesis expanded from "route across known substrates" to "discover + jointly optimize (model × hardware × provider) per workflow step."
 
 ---
 
 ## 1. Summary
 
-Sploink is the workflow-and-skill layer for AI agents. It breaks each agent workflow into typed steps, routes each step to the optimal substrate (edge NPU, cloud frontier, cloud specialist, local CPU), directs hardware-level mechanisms (caching, quantization, batching, speculative decoding) per step via the inference layer's APIs, and crystallizes winning patterns into reusable substrate-tuned skills. Developers wrap their existing agent code; Sploink intercepts each step, classifies it by workflow type, and dispatches it to the best available substrate for that type under the developer's cost / latency / quality SLA.
+Sploink is the **compute meta-layer for AI agents**. Given a workflow and an objective (low cost / high quality / latency budget), Sploink does four things:
 
-**Core thesis (the compression):**
+1. **Decomposes** the workflow into typed steps (classify, rerank, extract, reason, verify, …).
+2. **Discovers** the universe of viable (model × hardware × provider) combinations for each step type — across user-owned compute, managed clouds (Together / Modal / RunPod), specialized hardware (Groq LPU, Cerebras), edge devices, and marketplaces (x402 networks like Conduit).
+3. **Jointly optimizes** the per-step assignment of (model, hardware, provider) against the user's objective, using a mix of empirical bench-on-demand and learned routing.
+4. **Dispatches** each step to its chosen combination — falling back to the user's existing provider accounts where they want them, or auto-provisioning fresh capacity (Modal / RunPod / spot GPU rentals) where they don't.
 
-> ai agent workflow → typed steps → break steps apart → attribute the right compute per step → edge vs cloud, different hardware types → crystallize winning patterns into reusable skills
+Developers wrap their existing agent code in one line; Sploink takes it from there. The user never thinks about "should I use Together's Llama 70B or Groq's 8B for this step" — Sploink decides, dispatches, observes, and improves the decision over time.
 
-An agent workflow is a graph of *typed* heterogeneous steps. Step type (classification, embedding, bounded reasoning, frontier reasoning, tool execution, etc.), not just step size, determines the optimal substrate. Today every step runs on the same substrate (usually a closed frontier API), which means most steps overpay by 3–10x. Workflow-aware substrate routing with hardware-level policy directives delivers 30–60% cost reduction on real agent workloads without quality loss, with the savings compounding as the skill layer matures.
+**Core thesis (the compression — v0.4 expanded):**
 
-**Layer positioning:** Sploink sits at the workflow + skill layer, *above* the inference orchestration layer. We consume inference providers (Anthropic, OpenAI, Together, Modal, Groq, Cerebras, eventually Gimlet) as substrates. We are not building an inference engine. The differentiation is that we issue hardware-level directives per workflow step based on step type and observed telemetry — the inference layer below us executes them.
+> ai agent workflow → typed steps → for each step: discover candidate (model × hardware × provider) options → jointly optimize for cost + quality + latency → dispatch (auto-provisioning if needed) → observe → re-optimize → crystallize winning patterns into reusable skills
+
+The earlier framing ("route to the right substrate per step") was correct but incomplete: it assumed the user already had access to the substrates and that routing was the only decision. The expanded thesis treats **substrate availability itself as a runtime concern**. Sploink discovers, evaluates, and provisions compute on the user's behalf, choosing models and hardware jointly rather than separately.
+
+An agent workflow is a graph of *typed* heterogeneous steps. Each step type has a different cost/quality/latency Pareto frontier over the universe of available (model, hardware, provider) combinations. Today developers manually pick one frontier API for everything — overpaying 3–10× on cheap steps and missing better trade-offs they don't know exist. **Sploink does the discovery, optimization, and provisioning so the developer just writes their agent.**
+
+**Layer positioning:** Sploink sits at the compute-meta layer, *above* inference providers and inference orchestration. We consume everything below as substrates — provider APIs (Anthropic, Groq, Together, OpenAI), in-process engines (vLLM, llama.cpp, MLX), GPU marketplaces (RunPod, Vast.ai, Salad), payment-routed networks (x402 marketplaces like Conduit), and managed serverless platforms (Modal). We are not building an inference engine, a GPU marketplace, or a payments network. **The product is the discovery + joint-optimization + routing brain that sits above all of them.**
 
 ---
 
@@ -42,21 +51,27 @@ The opportunity: **make per-step substrate routing a one-line code change.**
 
 ---
 
-## 3. Vision — four-phase arc
+## 3. Vision — five-phase arc
 
-Sploink is built as a four-phase stack. Each phase unlocks the next; each phase is a chapter of the same product, not a separate company.
+Sploink is built as a five-phase stack. Each phase unlocks the next; each phase is a chapter of the same product, not a separate company. Phases 2.5 and 3 are new in v0.4; previously phase 2 conflated routing across known substrates with the larger discovery + auto-provisioning vision.
 
-- **Phase 1 (now, v1 shipped May 10 2026): Workflow telemetry and cockpit.** Rewind, replay, intervene mid-session. The original wedge. Already live with users.
-- **Phase 2 (next 12 weeks): Hardware-aware workflow + skill generation.** Per-step substrate routing across edge, cloud frontier, and cloud specialists. Hardware-level policy directives (caching, quantization, spec-dec) issued per workflow step based on type. Skill library begins to crystallize from observed routing patterns.
-- **Phase 3 (months 6–18): Skill distillation.** Crystallized skills compress into substrate-tuned specialized SLMs that replace cloud-API calls on the workloads where they outperform on cost, latency, or quality. Telemetry from Phases 1–2 *is* the training signal that no incumbent has.
-- **Phase 4 (year 2+): Agent substrate layer.** Once skill libraries and substrate routing reach scale, Sploink becomes the runtime substrate for the broader agentic economy. Marketplace, composition search, just-in-time agent synthesis.
+- **Phase 1 (now, v0.1.x shipped May 22 2026): Workflow telemetry and per-step routing across user-known substrates.** Drop-in `sploink.wrap()`. Static routing table for known providers (Anthropic, Groq, Ollama, OpenAI, Together). Bench validates the cost-savings thesis (92.5% cost reduction on HotpotQA at -0.13 F1). Live on PyPI as `sploink`.
+- **Phase 2 (next 4–8 weeks): Substrate discovery layer.** Sploink stops requiring the user to enumerate their substrates. It calls existing aggregator APIs (OpenRouter, RunPod, Vast.ai, Together, Modal, Replicate) to discover available (model × hardware × provider) combinations in real time. A curated "compute leaderboard" emerges as user-facing docs surface; a `sploink benchmark` CLI runs on-demand evals against discovered combinations.
+- **Phase 2.5 (months 2–6): Joint optimization brain.** Replace the static routing table with a learned + bandit-driven optimizer that jointly searches (model × hardware × provider) for each step type, optimizing user-declared objectives (min cost, min latency, max quality, or Pareto-frontier traversal). Cold-start via curated benchmarks; warm up via per-customer telemetry. The router's decisions stop being rules and start being learned policies.
+- **Phase 3 (months 6–12): Auto-provisioning.** Sploink doesn't just pick a combination — it rents the GPU, deploys the model, serves the calls, and tears down idle capacity. Via Modal, RunPod, Replicate, dedicated Together endpoints, and (eventually) direct rentals via Vast.ai or x402 marketplaces. The user never opens a provisioning dashboard.
+- **Phase 4 (months 12–24): Skill distillation.** Crystallized routing-policy + observed-trace patterns compress into substrate-tuned specialized SLMs that outperform the discovery-layer's choices on specific workloads. Telemetry from Phases 1–3 *is* the training signal that no incumbent has.
+- **Phase 5 (year 2+): Agent substrate layer.** Once skill libraries, joint optimization, and auto-provisioning reach scale, Sploink becomes the runtime substrate for the broader agentic economy. Composition search, just-in-time agent synthesis, programmatic skill marketplaces.
 
 Trigger conditions for advancing phases:
-- Phase 1 → 2: live customer workflows with measurable per-step cost; current state
-- Phase 2 → 3: ≥3 customers on Phase 2 with N workflows running, M skill patterns observed
-- Phase 3 → 4: skill library reaches K distinct substrate-tuned variants used across customers
+- Phase 1 → 2: ≥1 paying customer running production workflows on Sploink's routing layer
+- Phase 2 → 2.5: ≥3 customers with workloads where the discovery layer surfaces clearly better options than their current provider choice
+- Phase 2.5 → 3: joint optimizer demonstrably outperforms static routing on ≥3 representative workloads; customer requests auto-provisioning explicitly
+- Phase 3 → 4: auto-provisioning at scale produces enough telemetry to train substrate-tuned SLMs
+- Phase 4 → 5: skill library reaches K distinct substrate-tuned variants used across customers
 
-**Do not pursue Phase 3 or 4 as separate companies.** They are the natural output of executing Phase 2 well.
+**Do not pursue any phase as a separate company.** They are the natural output of executing the prior phase well. Resist the urge to spin up adjacent companies as new substrate layers reveal themselves; write each into the PRD as a future phase with a trigger condition.
+
+**The single most common failure mode this PRD is trying to prevent**: trying to build Phases 2.5–3 before Phase 1 has a paying customer. Discovery + joint optimization + auto-provisioning is a multi-quarter, multi-engineer project. Phase 1 is buildable by one founder and is the proof point that the deeper thesis is worth pursuing.
 
 ## 3.1 The 24-month developer experience
 
@@ -120,6 +135,16 @@ The developer never thinks about Groq vs. H100 vs. consumer GPU vs. Claude. They
 - Already mixed-model (some open, some closed)
 - Wants per-step observability and substrate flexibility
 - Will adopt as a sidecar/proxy or via SDK integration
+
+### Tertiary persona (unlocked by Phase 2 discovery + Phase 3 auto-provisioning): the workload owner with no infrastructure
+
+- Has a multi-step agent that needs inference
+- Does NOT have Anthropic / Groq / Together accounts; doesn't want to set them up
+- Wants to pay one company for "the right inference, please"
+- Today these users either over-pay via OpenAI's API or under-deliver via a single provider
+- Adoption motion: install sploink, declare workload + budget, sploink discovers + provisions + dispatches; one bill from sploink (markup on the underlying compute)
+
+This persona is meaningful only after Phase 2.5+ when sploink can actually do discovery + joint optimization + auto-provisioning. Until then, they fall back to the primary persona's path.
 
 ### Anti-personas (v1)
 
@@ -246,16 +271,36 @@ The smallest thing that demonstrates per-step heterogeneous routing on real work
 
 ## 10. Competitive positioning
 
-| Layer | Player | Our relationship |
-|---|---|---|
-| Heterogeneous compute orchestration (infrastructure) | Gimlet Labs, NVIDIA Dynamo, llm-d | Substrate provider — we route to / on top of them |
-| Single-provider inference (NVIDIA-bound) | Together, Modal, Fireworks, Baseten | Substrate backends we route to |
-| AI ASIC clouds | Groq, Cerebras, d-Matrix | Substrate backends |
-| Model API aggregation | OpenRouter, Portkey, Martian | Adjacent — they route between *closed models*; we route between *substrates* |
-| Agent frameworks | LangGraph, CrewAI, LlamaIndex | Integration targets; we run inside their workflows |
-| Observability | LangSmith, Langfuse, Braintrust | We expose hardware-attribution none of them surface |
+The competitive picture expands as the phases unlock. Each row notes our relationship per phase.
 
-**Our wedge**: workflow-typed, per-step substrate routing with hardware-level policy directives and a crystallizing skill library, exposed via a developer-facing observability cockpit.
+| Layer | Player | Phase 1 (now) | Phase 2.5+ (joint optimization) | Phase 3+ (auto-provisioning) |
+|---|---|---|---|---|
+| Heterogeneous compute orchestration (chip-level) | Gimlet Labs, NVIDIA Dynamo, llm-d | We route on top of them | Same | Same |
+| Managed inference clouds | Together, Modal, Fireworks, Baseten, Anyscale | We route to them | We discover them via their APIs + benchmark on demand | We auto-provision via their APIs |
+| AI ASIC clouds | Groq, Cerebras, d-Matrix | Substrate backend | Discoverable + benchmarked | We dispatch with their constraints |
+| GPU rental marketplaces | RunPod, Vast.ai, Salad, io.net | Not used | Discovery target (price, availability, spec) | Auto-provisioning target |
+| Model API aggregation | OpenRouter, Portkey, Martian | Adjacent (model layer vs hardware layer) | Direct competitor *for the routing decision*; we differentiate by also optimizing hardware below the model choice | Same — they don't auto-provision; we do |
+| Auto-provisioned inference | Modal, Replicate, Hugging Face Inference Endpoints | Not in scope | Discovery target | Direct competitor — we make this a routable substrate, not a primary product |
+| Agent frameworks | LangGraph, CrewAI, LlamaIndex, DSPy | Integration targets | Same | Same — we run *inside* their workflows |
+| Observability | LangSmith, Langfuse, Braintrust | We expose hardware-attribution none of them surface | Same | Same |
+| Payment / settlement networks for AI | Conduit Protocol (x402 on Solana), other x402 marketplaces | Not in scope | Discovery layer — Conduit's listings become a substrate type | Substrate dispatched to with payment automation |
+| Inference-cost FinOps tools | Helicone, BasePilot, internal dashboards | Light overlap on observability | Direct competitor on cost-optimization narrative; we go further by *acting* on the cost decision | Same |
+
+**Our wedge in v0.4 framing**: be the only layer that does **discovery + joint optimization + dispatch** across the full (model × hardware × provider) space, exposed as a one-line library that drops into existing agent code. No competitor does all three; the incumbents in each row above do one piece.
+
+**The one-line positioning evolves per phase:**
+
+- **Phase 1**: "Drop-in `sploink.wrap()`; we route each step of your agent to the cheapest substrate you already have access to."
+- **Phase 2.5**: "Tell us your workload; we discover and benchmark the best (model × hardware × provider) combination for each step, then route there."
+- **Phase 3**: "Bring an agent and a budget; we find the right compute, rent it, deploy it, and dispatch your calls. You see one bill, not ten."
+
+**Why composition rather than competition**:
+- Conduit's USDC marketplace becomes a substrate type Sploink dispatches to (Phase 2.5+)
+- Modal's auto-deployed inference becomes a substrate type Sploink provisions on top of (Phase 3+)
+- OpenRouter's model catalog informs Sploink's discovery layer (Phase 2)
+- Gimlet's chip-level routing is what powers some of our underlying substrates (Phase 3+)
+
+Sploink is **above all of them**, optimizing across the union of their offerings.
 
 **The one-line positioning vs Gimlet** (do not pitch as "Gimlet but more"; that anchors to their measuring stick and loses): *"Gimlet routes chips. We route agents. They optimize each inference call; we orchestrate the workflow of many inference, tool, and edge calls under one SLA."*
 
@@ -289,6 +334,15 @@ The differentiation is the *combination*, not any single piece. Each piece exist
 - **Eval infrastructure is hard**: weak evals → weak routing → broken trust. Mitigation: invest in evals from week 1, not as an afterthought.
 - **Cold outreach to design partners is the gating function**: nothing else matters until we have 5 customers willing to run production workflows on Sploink.
 - **18 disciplines to integrate (the breadth tax)**: workflow orchestration, agent systems, hardware architecture, inference systems, ML model architectures, reasoning decomposition, networking, confidential computing, edge runtimes, observability, RL/multi-objective optimization, developer experience, compiler intuition, economics, cryptography, capability theory, benchmarking, GTM. Most of these need fluency, not depth, on the founder side; the team must cover deep implementation for the disciplines the founder doesn't own. Failure mode: paralysis from trying to go deep on all of them. Mitigation: founder goes deep on 4 (workflow + agent systems, hardware architecture at systems level, inference systems mechanics, reasoning decomposition strategies); fluency on the rest; team hires cover implementation depth.
+
+### Scope (added v0.4)
+
+The expanded vision in §3 (discovery → joint optimization → auto-provisioning) is **12–18 months of engineering for a small team**, not a solo founder's quarter. The single largest risk of the v0.4 PRD is letting the vision pull resources off Phase 1 before Phase 1 has a paying customer.
+
+- **Premature Phase 2 build**: writing discovery integrations before any customer asks for them. Mitigation: build Phase 1 (routing across known substrates) until ≥1 paying customer; only then start the discovery layer.
+- **Premature Phase 2.5 build**: building a learned joint optimizer before there's enough customer telemetry to train it on. Mitigation: ship a "leaderboard + on-demand bench" surface as the *first* iteration of Phase 2.5; defer learned routing until ≥10 customers' telemetry is available.
+- **Premature Phase 3 build**: auto-provisioning is the highest-risk surface because customer money is on the line (runaway GPU costs, leaked instances). Mitigation: do not build Phase 3 until Phase 2.5 has produced a clear customer pull for it.
+- **Trying to monetize too many layers**: charging for discovery, optimization, provisioning, AND routing creates a confusing pricing surface. Mitigation: revenue is one line at a time — Phase 1 is per-call markup or savings share; Phase 2.5 may add a benchmark-runs fee; Phase 3 may add a provisioning markup. Don't combine.
 
 ### Trust (edge inference's structural objection)
 
@@ -354,20 +408,26 @@ Everything in v1 serves one question: **can per-step substrate routing deliver r
 
 # Notes
 
-**The compression (memorize):**
-> workflow → typed steps → break apart → attribute right compute → edge vs cloud + different hardware → crystallize patterns into skills
+**The compression (memorize) — v0.4:**
+> workflow → typed steps → for each step: discover (model × hardware × provider) options → jointly optimize for cost + quality + latency → dispatch (auto-provision if needed) → observe → re-optimize → crystallize patterns into skills
 
 **One-line mantra (internal):**
-> "Right compute for the right work, and remember what worked."
+> "Right compute for the right work — found, evaluated, provisioned, and remembered."
 
 **One-sentence layman pitch:**
-> "Software that makes AI agents cheaper and faster by sending each piece of their work to the right hardware — your laptop's AI chip when possible, the cloud when actually needed."
+> "Software that finds the best AI compute for each piece of an agent's work and dispatches there automatically — so developers stop manually picking models and providers."
 
-**Three-sentence pitch:**
-> "AI agents do work by chaining a lot of small steps, but today every step runs on the same expensive cloud AI, even when it doesn't need to. Sploink breaks down what the agent is doing, sends each piece to the right place — the user's own laptop AI chip for the small stuff, the cloud for the heavy reasoning — and stitches it back together. You save 30–60% on your AI bill, get faster responses, and keep more of your data on your own machine."
+**Three-sentence pitch (Phase 1 framing — for design-partner conversations today):**
+> "AI agents do work by chaining a lot of small steps, but today every step runs on the same expensive cloud AI, even when it doesn't need to. Sploink intercepts each call your agent makes and routes it to the substrate (CPU, LPU, GPU, frontier API) that's cheapest for that specific step type. You save 60–80% on your AI bill while keeping quality where it matters."
+
+**Three-sentence pitch (Phase 2.5–3 framing — for the longer-arc story):**
+> "Picking the right AI compute is an optimization problem nobody has time to solve — there are dozens of models, hundreds of hardware options, and the right answer depends on the workload. Sploink does the discovery, benchmarking, and selection automatically: tell it your workload and budget, and it routes each step of your agent to the (model × hardware × provider) combination that's best right now. Eventually it even provisions the compute for you, so you bring an agent and a bill cap; we bring everything below."
 
 **Cofounder-level positioning:**
-Sploink is the workflow + skill layer that uses hardware-layer telemetry to make better routing decisions and to crystallize substrate-tuned skills. We sit one layer above the inference orchestration layer (Gimlet's space). We do not build inference infrastructure; we direct it via APIs. Our moat is the integration across workflow, hardware, skills, and edge — a combination no incumbent has assembled because it requires unusual cross-disciplinary fluency to operate.
+Sploink is the **compute meta-layer** above the entire inference stack. We treat every provider, every engine, every marketplace as a substrate we discover, evaluate, and dispatch to. Our moat is the joint-optimization brain (which combinations work best for which workloads) built on cross-customer telemetry and the user-facing routing layer that surfaces those decisions. No incumbent has assembled this because it requires fluency in workflow systems, hardware architecture, inference engines, and ML-driven optimization simultaneously.
 
 **Pattern discipline:**
-Phases 1 through 4 are *chapters of the same product*, not separate startups. Resist the urge to spin up adjacent companies when new substrate layers reveal themselves (this has been a recurring failure mode). Write each new framing into the PRD as a future phase with a trigger condition.
+Phases 1 through 5 are *chapters of the same product*, not separate startups. Resist the urge to spin up adjacent companies when new substrate layers reveal themselves (this has been a recurring failure mode). Write each new framing into the PRD as a future phase with a trigger condition.
+
+**Discipline against premature scope expansion (added v0.4):**
+The v0.4 expansion of the thesis (discovery + joint optimization + auto-provisioning) is a 12–18-month, multi-engineer project. **It is the right direction; it is the wrong sprint.** Phase 1 still needs a paying customer before any of Phase 2+ is worth building. Each phase has an explicit trigger condition for a reason: the trigger conditions are the only thing preventing this PRD from being a 5-year wishlist instead of a buildable roadmap.
