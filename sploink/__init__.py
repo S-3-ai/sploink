@@ -11,6 +11,7 @@ from sploink.stack import Stack, Recommendation, pick_recommendation, explain_pi
 # ─────────────────────────────────────────────────────────────────────────────
 
 _WEIGHTS: dict[str, float] = {"cost": 1/3, "latency": 1/3, "quality": 1/3}
+_USER_CONFIGURED: bool = False  # flips to True on first configure() call
 
 _ALIASES = {
     "cost":     {"cost": 1.0, "latency": 0.0, "quality": 0.0},
@@ -34,7 +35,7 @@ def configure(*, optimize_for: str | dict[str, float] = "balanced") -> None:
           Missing keys default to 0. Weights need not sum to 1 (scoring is
           a weighted sum; relative weights are what matter).
     """
-    global _WEIGHTS
+    global _WEIGHTS, _USER_CONFIGURED
     if isinstance(optimize_for, str):
         if optimize_for not in _ALIASES:
             raise ValueError(
@@ -46,6 +47,17 @@ def configure(*, optimize_for: str | dict[str, float] = "balanced") -> None:
         _WEIGHTS = dict(optimize_for)
     else:
         raise TypeError("optimize_for must be a string preset or a weights dict")
+    _USER_CONFIGURED = True
+
+
+def _has_user_configured() -> bool:
+    """Internal: has the user explicitly called configure()?
+
+    sploink.route uses this to decide whether to consult the curated index
+    (pick_for) or fall back to the legacy static router rules. Keeps v0.1.4
+    upgrades behavior-preserving until the user opts in.
+    """
+    return _USER_CONFIGURED
 
 
 def get_weights() -> dict[str, float]:

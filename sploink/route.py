@@ -59,6 +59,31 @@ class step:
         _FORCED_LABEL.reset(self._token)
 
 
+def resolve_route(step_label: str) -> "router_mod.Route":
+    """Single source of truth for "what should we route this step to?"
+
+    Consults the curated index (via sploink.pick_for) only if the user has
+    explicitly opted in by calling sploink.configure(...). Otherwise falls
+    back to the legacy static rules in sploink.router. Also falls back when
+    the index has no Recommendation for the given step label.
+
+    Late imports avoid the sploink/__init__.py → sploink/route.py cycle.
+    """
+    try:
+        from sploink import _has_user_configured, pick_for  # late import
+    except ImportError:
+        return router_mod.choose(step_label)
+
+    if _has_user_configured():
+        rec = pick_for(step_label)
+        if rec is not None:
+            return router_mod.Route(
+                substrate=rec.stack.provider,
+                model=rec.stack.model,
+            )
+    return router_mod.choose(step_label)
+
+
 def infer_step_label_from_prompt(messages: list[dict] | None) -> str:
     """Cheap pre-call labeler. Looks at message text for telltale patterns.
 
@@ -113,7 +138,7 @@ def maybe_route_groq_call(
         return None
 
     step_label = infer_step_label_from_prompt(messages)
-    route = router_mod.choose(step_label)
+    route = resolve_route(step_label)
 
     # If router says keep it on Groq, pass through.
     if route.substrate == "groq":
@@ -152,7 +177,7 @@ def maybe_route_anthropic_call(
     # System prompt + messages contribute to step labeling.
     labelable = _anthropic_messages_to_flat(messages, system)
     step_label = infer_step_label_from_prompt(labelable)
-    route = router_mod.choose(step_label)
+    route = resolve_route(step_label)
 
     if route.substrate == "anthropic":
         return None
@@ -186,7 +211,7 @@ def maybe_route_openai_call(
         return None
 
     step_label = infer_step_label_from_prompt(messages)
-    route = router_mod.choose(step_label)
+    route = resolve_route(step_label)
 
     if route.substrate == "openai":
         return None
@@ -221,7 +246,7 @@ async def maybe_route_anthropic_call_async(
         return None
     labelable = _anthropic_messages_to_flat(messages, system)
     step_label = infer_step_label_from_prompt(labelable)
-    route = router_mod.choose(step_label)
+    route = resolve_route(step_label)
     if route.substrate == "anthropic":
         return None
     if route.substrate == "ollama":
@@ -246,7 +271,7 @@ async def maybe_route_groq_call_async(
     if not _ROUTING_ENABLED.get():
         return None
     step_label = infer_step_label_from_prompt(messages)
-    route = router_mod.choose(step_label)
+    route = resolve_route(step_label)
     if route.substrate == "groq":
         return None
     if route.substrate == "ollama":
@@ -270,7 +295,7 @@ async def maybe_route_openai_call_async(
     if not _ROUTING_ENABLED.get():
         return None
     step_label = infer_step_label_from_prompt(messages)
-    route = router_mod.choose(step_label)
+    route = resolve_route(step_label)
     if route.substrate == "openai":
         return None
     if route.substrate == "ollama":
