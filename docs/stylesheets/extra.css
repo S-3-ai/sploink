@@ -29,35 +29,29 @@
   font-weight: 600;
 }
 
-/* Wider right-side TOC so long subheadings don't get truncated mid-word.
-   Material defaults to ~12rem; sploink's subheadings (e.g. "Set environment
-   variables for the providers you'll use") need more room. */
+/* TOC is integrated into the LEFT sidebar (via toc.integrate). Style the
+   inline subheading entries so they're readable and visually distinct from
+   the page-level nav. */
 @media screen and (min-width: 76.25em) {
-  .md-sidebar--secondary {
+  /* Left sidebar a touch wider to fit nested TOC entries comfortably */
+  .md-sidebar--primary {
     width: 14rem;
   }
-  .md-sidebar--secondary .md-nav__title {
+  /* H2/H3 TOC entries: smaller, muted, allow wrapping */
+  .md-sidebar--primary .md-nav .md-nav .md-nav__link {
     font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .md-sidebar--secondary .md-nav__link {
-    font-size: 0.75rem;
     line-height: 1.35;
-    /* Allow wrap instead of truncating */
+    color: var(--md-default-fg-color--light);
     white-space: normal;
     word-break: break-word;
+    padding: 0.2rem 0;
   }
-  /* Nested (H3) entries — slight indent, smaller, muted */
-  .md-sidebar--secondary .md-nav .md-nav .md-nav__link {
-    font-size: 0.72rem;
-    padding-left: 0.5rem;
+  /* Currently-active section: bold + accent color */
+  .md-sidebar--primary .md-nav__link--active {
+    color: var(--md-accent-fg-color);
+    font-weight: 600;
   }
-}
-
-/* Bump main content max-width a touch so the wider TOC doesn't crowd it */
-@media screen and (min-width: 76.25em) {
+  /* Main content can now stretch since right sidebar is gone */
   .md-grid {
     max-width: 64rem;
   }

@@ -30,7 +30,8 @@ theme:
     - navigation.expand
     - navigation.top
     - navigation.instant
-    - toc.follow            # TOC auto-scrolls to highlight the current section
+    - toc.integrate         # merge page TOC into LEFT sidebar (right sidebar disappears)
+    - toc.follow            # auto-highlight the current section as user scrolls
     - content.code.copy
     - content.code.annotate
     - search.suggest
